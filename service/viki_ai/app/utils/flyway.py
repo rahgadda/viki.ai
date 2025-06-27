@@ -13,7 +13,7 @@ def update_flyway_config():
     
     # Check if flyway.conf exists
     if not os.path.exists(flyway_conf_path):
-        print(f"Error: flyway.conf not found at {flyway_conf_path}")
+        settings.logger.error(f"Error: flyway.conf not found at {flyway_conf_path}")
         return False
     
     # Read the current flyway.conf content
@@ -34,17 +34,15 @@ def update_flyway_config():
             updated_lines.append(f'flyway.password={settings.PERSISTENCE_PASSWORD}\n')
         elif line.startswith('flyway.baselineOnMigrate='):
             updated_lines.append(f'flyway.baselineOnMigrate={str(settings.FLYWAY_MIGRATION_BASELINE).lower()}\n')
-        else:
-            updated_lines.append(line + '\n' if line else '\n')
     
     # Write the updated content back to flyway.conf
     with open(flyway_conf_path, 'w') as file:
         file.writelines(updated_lines)
-    
-    print(f"Successfully updated flyway.conf at {flyway_conf_path}")
-    print("Updated values:")
-    print(f"  flyway.locations = {settings.FLYWAY_LOCATION}")
-    print(f"  flyway.url = {settings.FLYWAY_URL}")
-    print(f"  flyway.user = {settings.PERSISTENCE_USERNAME}")
-    print(f"  flyway.password = {settings.PERSISTENCE_PASSWORD}")
-    print(f"  flyway.baselineOnMigrate = {str(settings.FLYWAY_MIGRATION_BASELINE).lower()}")
+
+    settings.logger.debug(f"Successfully updated flyway.conf at {flyway_conf_path}")
+    settings.logger.debug("Updated values:")
+    settings.logger.debug(f"  flyway.locations = {settings.FLYWAY_LOCATION}")
+    settings.logger.debug(f"  flyway.url = {settings.FLYWAY_URL}")
+    settings.logger.debug(f"  flyway.user = {settings.PERSISTENCE_USERNAME}")
+    settings.logger.debug(f"  flyway.password = {settings.PERSISTENCE_PASSWORD}")
+    settings.logger.debug(f"  flyway.baselineOnMigrate = {str(settings.FLYWAY_MIGRATION_BASELINE).lower()}")
