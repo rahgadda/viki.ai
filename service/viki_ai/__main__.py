@@ -1,5 +1,5 @@
 import pyfiglet
-
+from .app.utils import flyway
 
 def main():
     """
@@ -10,6 +10,8 @@ def main():
     # Print the welcome message
     print(pyfiglet.figlet_format("VIKI AI").rstrip())
     print("Welcome to VIKI.AI!!!\nThe AI Agent platform for intelligent actions. \n")
+
+    flyway.update_flyway_config()
 
 if __name__ == "__main__":
     main()

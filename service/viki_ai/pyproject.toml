@@ -1,7 +1,7 @@
 [project]
-name = "viki-ai"
-version = "0.1.0"
-description = "Add your description here"
+name = "viki_ai"
+version = "0.0.1"
+description = "Agent platform for intelligent actions"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
