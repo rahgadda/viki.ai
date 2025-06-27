@@ -10,7 +10,7 @@ def log_proxy_config():
     settings.logger.debug("Current proxy configuration:")
     settings.logger.debug(f"  HTTP_PROXY = {os.environ.get('HTTP_PROXY', '') or os.environ.get('http_proxy', '')}")
     settings.logger.debug(f"  HTTPS_PROXY = {os.environ.get('HTTPS_PROXY', '') or os.environ.get('https_proxy', '')}")
-    settings.logger.debug(f"  NO_PROXY = {os.environ.get('NO_PROXY', '') or os.environ.get('no_proxy', '')}")
+    settings.logger.debug(f"  NO_PROXY = {os.environ.get('NO_PROXY', '') or os.environ.get('no_proxy', '')}\n")
 
 def update_proxy_config():
     """

@@ -1,6 +1,7 @@
 import pyfiglet
 from .app.utils.config import settings
 from .app.utils import flyway
+from .app.utils import proxy
 
 def main():
     """
@@ -12,6 +13,10 @@ def main():
     print(pyfiglet.figlet_format("VIKI AI").rstrip())
     print("The AI Agent platform for intelligent actions!\n")
 
+    # Update proxy configuration
+    proxy.update_proxy_config()
+
+    # Create DB
     flyway.update_flyway_config()
 
 if __name__ == "__main__":
