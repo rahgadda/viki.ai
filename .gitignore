@@ -1,0 +1,5 @@
+# File to convert terminal to bash
+local.sh
+
+# Server log file
+server.log
