@@ -8,12 +8,19 @@ else
     git clone https://github.com/rahgadda/viki.ai.git .
 fi
 
-# Kill any existing python server
-if pgrep -f "python -m http.server" > /dev/null; then
-    echo "Killing existing python server..."
-    pkill -f "python -m http.server"
+# Kill any existing python server on port 5500
+if pgrep -f "python.*http.server.*5500" > /dev/null; then
+    echo "Killing existing python server on port 5500..."
+    pkill -f "python.*http.server.*5500"
+    sleep 2  # Wait for process to fully terminate
+    echo "Existing server killed."
+elif lsof -ti:5500 > /dev/null 2>&1; then
+    echo "Port 5500 is in use by another process. Killing it..."
+    kill -9 $(lsof -ti:5500) 2>/dev/null || true
+    sleep 2
+    echo "Port 5500 freed."
 else
-    echo "No existing python server found."
+    echo "Port 5500 is available."
 fi
 
 # Starting UI with python alias support
