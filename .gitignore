@@ -1,6 +1,9 @@
 # File to convert terminal to bash
 local.sh
 
+# Environment variables
+**/.env
+
 # Server log file
 ui.log
 service.log
