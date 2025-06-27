@@ -2,4 +2,16 @@
 local.sh
 
 # Server log file
-server.log
+ui.log
+service.log
+
+# Vscode settings
+.vscode
+
+# Python virtual environment
+service/viki_ai/.venv
+# Python cache files
+**/__pycache__
+# Python bytecode files
+**/*.pyc
+# Jupyter Notebook checkpoints
