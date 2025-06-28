@@ -1,5 +1,5 @@
 [project]
-name = "viki_ai"
+name = "viki-ai"
 version = "0.0.1"
 description = "Agent platform for intelligent actions"
 readme = "README.md"

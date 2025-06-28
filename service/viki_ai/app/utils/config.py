@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from . import logs 
+import importlib.metadata
 
 load_dotenv()
 
@@ -18,12 +19,19 @@ class Settings:
         if Settings._initialized:
             return
         Settings._initialized = True
-        
+
         # Debugging Configuration
         self.DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
 
         # Logger Configuration
         self.logger = logs.setup_logging(self.DEBUG)
+
+        # Loading metadata
+        try:
+            self.VERSION = importlib.metadata.version("viki-ai")
+        except importlib.metadata.PackageNotFoundError:
+            self.logger.error("viki.ai package not found. Ensure it is installed correctly.")
+            exit(1)
 
         # Proxy Details
         self.HTTPPROXY: str = os.getenv("HTTPPROXY", "")

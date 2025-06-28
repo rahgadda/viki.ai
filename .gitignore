@@ -4,6 +4,8 @@ local.sh
 # Environment variables
 **/.env
 
+**/viki_ai.egg-info
+
 # Server log file
 ui.log
 service.log
