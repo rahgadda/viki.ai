@@ -3,8 +3,8 @@ local.sh
 
 # Environment variables
 **/.env
-
 **/viki_ai.egg-info
+**/viki_ai.db
 
 # Server log file
 ui.log

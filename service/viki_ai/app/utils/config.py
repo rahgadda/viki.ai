@@ -39,6 +39,7 @@ class Settings:
         self.NOPROXY: str = os.getenv("NOPROXY", "")
 
         # Flyway location
+        self.FLYWAY_FOLDER_LOCATION: str = os.getenv("FLYWAY_FOLDER_LOCATION", "")
         self.FLYWAY_LOCATION: str = os.getenv("FLYWAY_LOCATION", "")
         self.FLYWAY_URL: str = os.getenv("FLYWAY_URL", "")
         self.FLYWAY_MIGRATION_BASELINE: bool = os.getenv("FLYWAY_MIGRATION_BASELINE", "True").lower() == "true"

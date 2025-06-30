@@ -17,7 +17,9 @@ def main():
     proxy.update_proxy_config()
 
     # Create DB
+    flyway.create_sqlite_db()
     flyway.update_flyway_config()
+    flyway.run_flyway_migrations()
 
 if __name__ == "__main__":
     main()
