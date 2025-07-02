@@ -39,7 +39,7 @@ CREATE TABLE file_store (
 );
 
 -- Table creation for LLM Configuration
-CREATE TABLE llm_config (
+CREATE TABLE llm (
     llc_id VARCHAR(80) NOT NULL,
     llc_provider_type_cd VARCHAR(80) NOT NULL,
     llc_model_cd VARCHAR(240) NOT NULL,
@@ -55,7 +55,7 @@ CREATE TABLE llm_config (
 );
 
 -- Create index for LLM config file reference
-CREATE INDEX idx_llm_config_file ON llm_config(llc_fls_id);
+CREATE INDEX idx_llm_file ON llm(llc_fls_id);
 
 -- Table creation for Tool Configuration
 CREATE TABLE tools (
@@ -139,7 +139,7 @@ CREATE TABLE agents (
     creation_dt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_updated_dt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (agt_id),
-    FOREIGN KEY (agt_llc_id) REFERENCES llm_config(llc_id) ON DELETE CASCADE
+    FOREIGN KEY (agt_llc_id) REFERENCES llm(llc_id) ON DELETE CASCADE
 );
 
 -- Create index for agents LLM reference
