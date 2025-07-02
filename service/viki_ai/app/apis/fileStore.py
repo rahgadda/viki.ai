@@ -183,34 +183,3 @@ def download_file(
             "Content-Disposition": f"attachment; filename=file"
         }
     )
-
-@router.post("/fileStore", response_model=FileStoreMetadata, status_code=status.HTTP_201_CREATED)
-def create_file_store(
-    file_store: FileStoreCreate,
-    db: Session = Depends(get_db),
-    username: str = Depends(get_username)
-):
-    """Create a new file store"""
-    # Generate UUID for the file store
-    fileStoreId = str(uuid.uuid4())
-    
-    # Set the createdBy field from the username header
-    file_store_data = file_store.dict()
-    file_store_data['createdBy'] = username
-    
-    # Map schema fields to database fields
-    db_data = {
-        'fls_id': fileStoreId,
-        'fls_source_type_cd': file_store_data['fileStoreSourceTypeCd'],
-        'fls_source_id': file_store_data['fileStoreSourceId'],
-        'fls_file_name': file_store_data['fileStoreFileName'],
-        'fls_file_content': file_store_data['fileStoreFileContent'],
-        'created_by': file_store_data['createdBy'],
-        'last_updated_by': username  # Set lastUpdatedBy to same user for creation
-    }
-    
-    db_file_store = FileStore(**db_data)
-    db.add(db_file_store)
-    db.commit()
-    db.refresh(db_file_store)
-    return db_file_store
