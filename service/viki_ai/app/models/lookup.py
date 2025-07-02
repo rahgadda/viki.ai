@@ -19,35 +19,6 @@ class LookupTypes(Base):
     # Relationship to lookup details
     lookup_details = relationship("LookupDetails", back_populates="lookup_type", cascade="all, delete-orphan")
 
-    # Property mappings for Pydantic schema compatibility
-    @property
-    def lookupType(self):
-        return self.lkt_type
-    
-    @property
-    def lookupDescription(self):
-        return self.lkt_description
-    
-    @property
-    def createdBy(self):
-        return self.created_by
-    
-    @property
-    def lastUpdatedBy(self):
-        return self.last_updated_by
-    
-    @property
-    def creationDt(self):
-        return self.creation_dt
-    
-    @property
-    def lastUpdatedDt(self):
-        return self.last_updated_dt
-
-    @property
-    def lookupDetails(self):
-        return self.lookup_details
-
 
 class LookupDetails(Base):
     __tablename__ = "lookup_details"
@@ -64,40 +35,3 @@ class LookupDetails(Base):
 
     # Relationship to lookup type
     lookup_type = relationship("LookupTypes", back_populates="lookup_details")
-
-    # Property mappings for Pydantic schema compatibility
-    @property
-    def lookupType(self):
-        return self.lkd_lkt_type
-    
-    @property
-    def lookupDetailCode(self):
-        return self.lkd_code
-    
-    @property
-    def lookupDetailDescription(self):
-        return self.lkd_description
-    
-    @property
-    def lookupDetailSubCode(self):
-        return self.lkd_sub_code
-    
-    @property
-    def lookupDetailSort(self):
-        return self.lkd_sort
-    
-    @property
-    def createdBy(self):
-        return self.created_by
-    
-    @property
-    def lastUpdatedBy(self):
-        return self.last_updated_by
-    
-    @property
-    def creationDt(self):
-        return self.creation_dt
-    
-    @property
-    def lastUpdatedDt(self):
-        return self.last_updated_dt

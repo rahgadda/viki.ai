@@ -1,0 +1,137 @@
+### Create LookupType
+POST http://localhost:8000/api/v0.0.1/lookupTypes
+Content-Type: application/json
+x-username: rahul
+
+{
+  "lookupType": "SOURCE_TYPE_CD",
+  "lookupDescription": "FILE SOURCE TYPE"
+}
+
+###
+POST http://localhost:8000/api/v0.0.1/lookupTypes
+Content-Type: application/json
+x-username: rahul
+
+{
+  "lookupType": "PROVIDER_TYPE_CD",
+  "lookupDescription": "LLM INFERENCE PROVIDER TYPE"
+}
+
+### 
+GET http://localhost:8000/api/v0.0.1/lookupTypes
+x-username: rahul
+
+###
+DELETE http://localhost:8000/api/v0.0.1/lookupTypes/string
+x-username: rahul
+
+### Create LookupDetail
+POST http://localhost:8000/api/v0.0.1/lookupTypes/SOURCE_TYPE_CD/lookupDetails/bulk
+Content-Type: application/json
+x-username: rahul
+
+[
+    {
+        "lookupType": "SOURCE_TYPE_CD",
+        "lookupDetailCode": "LLM",
+        "lookupDetailDescription": "LLM",
+        "lookupDetailSort": 1
+    },
+    {
+        "lookupType": "SOURCE_TYPE_CD",
+        "lookupDetailCode": "KNOWLEDGE_BASE",
+        "lookupDetailDescription": "KNOWLEDGE BASE",
+        "lookupDetailSort": 2
+    }
+]
+
+
+###
+POST http://localhost:8000/api/v0.0.1/lookupTypes/PROVIDER_TYPE_CD/lookupDetails/bulk
+Content-Type: application/json
+x-username: rahul
+
+[
+    {
+        "lookupType": "PROVIDER_TYPE_CD",
+        "lookupDetailCode": "ollama",
+        "lookupDetailDescription": "Ollama",
+        "lookupDetailSort": 1
+    },
+    {
+        "lookupType": "PROVIDER_TYPE_CD",
+        "lookupDetailCode": "groq",
+        "lookupDetailDescription": "Groq",
+        "lookupDetailSort": 2
+    }
+    ,
+    {
+        "lookupType": "PROVIDER_TYPE_CD",
+        "lookupDetailCode": "openai",
+        "lookupDetailDescription": "OpenAI",
+        "lookupDetailSort": 3
+    }
+    ,
+    {
+        "lookupType": "PROVIDER_TYPE_CD",
+        "lookupDetailCode": "azure",
+        "lookupDetailDescription": "Microsoft Azure",
+        "lookupDetailSort": 4
+    }
+    ,
+    {
+        "lookupType": "PROVIDER_TYPE_CD",
+        "lookupDetailCode": "huggingface",
+        "lookupDetailDescription": "HuggingFace",
+        "lookupDetailSort": 5
+    }
+    ,
+    {
+        "lookupType": "PROVIDER_TYPE_CD",
+        "lookupDetailCode": "openrouter",
+        "lookupDetailDescription": "OpenRouter",
+        "lookupDetailSort": 6
+    }
+    ,
+    {
+        "lookupType": "PROVIDER_TYPE_CD",
+        "lookupDetailCode": "anthropic",
+        "lookupDetailDescription": "Anthropic",
+        "lookupDetailSort": 7
+    }
+]
+
+### Get Lookup Details for a Type (Using query parameter)
+GET http://localhost:8000/api/v0.0.1/lookupDetails?lookupType=SOURCE_TYPE_CD
+x-username: rahul
+
+###
+DELETE http://localhost:8000/api/v0.0.1/lookupTypes/SOURCE_TYPE_CD/lookupDetails/LLM
+x-username: rahul
+
+###
+DELETE http://localhost:8000/api/v0.0.1/lookupTypes/SOURCE_TYPE_CD/lookupDetails/KNOWLEDGE_BASE
+x-username: rahul
+
+###
+GET http://localhost:8000/api/v0.0.1/lookupDetails?lookupType=PROVIDER_TYPE_CD
+x-username: rahul
+
+### Create LLM Config
+POST http://localhost:8000/api/v0.0.1/llm
+Content-Type: application/json
+x-username: rahul
+
+{
+  "llmProviderTypeCd": "ollama",
+  "llmModelCd": "qwen3:32b"
+}
+
+###
+GET http://localhost:8000/api/v0.0.1/llm
+Content-Type: application/json
+x-username: rahul
+
+###
+DELETE http://localhost:8000/api/v0.0.1/llm/e0ab4ebd-c620-442f-90b6-65eda48c95f3

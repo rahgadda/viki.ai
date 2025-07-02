@@ -4,51 +4,58 @@ from typing import Optional
 
 
 class LLMBase(BaseModel):
-    llc_provider_type_cd: str = Field(..., max_length=80, description="Provider type code")
-    llc_model_cd: str = Field(..., max_length=240, description="Model code")
-    llc_endpoint_url: Optional[str] = Field(None, max_length=4000, description="Endpoint URL")
-    llc_api_key: Optional[str] = Field(None, max_length=240, description="API key")
-    llc_fls_id: Optional[str] = Field(None, max_length=80, description="Configuration file ID")
+    llmProviderTypeCd: str = Field(..., max_length=80, description="Provider type code", alias="llc_provider_type_cd")
+    llmModelCd: str = Field(..., max_length=240, description="Model code", alias="llc_model_cd")
+    llmEndpointUrl: Optional[str] = Field(None, max_length=4000, description="Endpoint URL", alias="llc_endpoint_url")
+    llmApiKey: Optional[str] = Field(None, max_length=240, description="API key", alias="llc_api_key")
+    llmFileStoreId: Optional[str] = Field(None, max_length=80, description="Configuration file ID", alias="llc_fls_id")
+    llmProxyRequired: Optional[bool] = Field(False, description="Whether proxy is required for this LLM", alias="llc_proxy_required")
+
+    class Config:
+        populate_by_name = True
 
 
 class LLMCreate(LLMBase):
-    llc_id: str = Field(..., max_length=80, description="LLM configuration ID")
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
+    pass
 
 
 class LLMUpdate(BaseModel):
-    llc_provider_type_cd: Optional[str] = Field(None, max_length=80, description="Provider type code")
-    llc_model_cd: Optional[str] = Field(None, max_length=240, description="Model code")
-    llc_endpoint_url: Optional[str] = Field(None, max_length=4000, description="Endpoint URL")
-    llc_api_key: Optional[str] = Field(None, max_length=240, description="API key")
-    llc_fls_id: Optional[str] = Field(None, max_length=80, description="Configuration file ID")
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
+    llmProviderTypeCd: Optional[str] = Field(None, max_length=80, description="Provider type code", alias="llc_provider_type_cd")
+    llmModelCd: Optional[str] = Field(None, max_length=240, description="Model code", alias="llc_model_cd")
+    llmEndpointUrl: Optional[str] = Field(None, max_length=4000, description="Endpoint URL", alias="llc_endpoint_url")
+    llmApiKey: Optional[str] = Field(None, max_length=240, description="API key", alias="llc_api_key")
+    llmFileStoreId: Optional[str] = Field(None, max_length=80, description="Configuration file ID", alias="llc_fls_id")
+    llmProxyRequired: Optional[bool] = Field(None, description="Whether proxy is required for this LLM", alias="llc_proxy_required")
+
+    class Config:
+        populate_by_name = True
 
 
 class LLM(LLMBase):
-    llc_id: str = Field(..., max_length=80, description="LLM configuration ID")
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
-    creation_dt: datetime = Field(..., description="Creation timestamp")
-    last_updated_dt: datetime = Field(..., description="Last updated timestamp")
+    llmId: str = Field(..., max_length=80, description="LLM configuration ID", alias="llc_id")
+    createdBy: Optional[str] = Field(None, max_length=80, description="Created by user", alias="created_by")
+    lastUpdatedBy: Optional[str] = Field(None, max_length=80, description="Last updated by user", alias="last_updated_by")
+    creationDt: datetime = Field(..., description="Creation timestamp", alias="creation_dt")
+    lastUpdatedDt: datetime = Field(..., description="Last updated timestamp", alias="last_updated_dt")
 
     class Config:
         from_attributes = True
-        
-
+        populate_by_name = True
 
 # For security purposes, we might want to exclude sensitive information like API keys
 class LLMPublic(BaseModel):
-    llc_id: str = Field(..., max_length=80, description="LLM configuration ID")
-    llc_provider_type_cd: str = Field(..., max_length=80, description="Provider type code")
-    llc_model_cd: str = Field(..., max_length=240, description="Model code")
-    llc_endpoint_url: Optional[str] = Field(None, max_length=4000, description="Endpoint URL")
-    llc_fls_id: Optional[str] = Field(None, max_length=80, description="Configuration file ID")
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
-    creation_dt: datetime = Field(..., description="Creation timestamp")
-    last_updated_dt: datetime = Field(..., description="Last updated timestamp")
+    llmId: str = Field(..., max_length=80, description="LLM configuration ID", alias="llc_id")
+    llmProviderTypeCd: str = Field(..., max_length=80, description="Provider type code", alias="llc_provider_type_cd")
+    llmModelCd: str = Field(..., max_length=240, description="Model code", alias="llc_model_cd")
+    llmEndpointUrl: Optional[str] = Field(None, max_length=4000, description="Endpoint URL", alias="llc_endpoint_url")
+    llmFileStoreId: Optional[str] = Field(None, max_length=80, description="Configuration file ID", alias="llc_fls_id")
+    llmProxyRequired: Optional[bool] = Field(False, description="Whether proxy is required for this LLM", alias="llc_proxy_required")
+    createdBy: Optional[str] = Field(None, max_length=80, description="Created by user", alias="created_by")
+    lastUpdatedBy: Optional[str] = Field(None, max_length=80, description="Last updated by user", alias="last_updated_by")
+    creationDt: datetime = Field(..., description="Creation timestamp", alias="creation_dt")
+    lastUpdatedDt: datetime = Field(..., description="Last updated timestamp", alias="last_updated_dt")
 
     class Config:
         from_attributes = True
+        populate_by_name = True
         

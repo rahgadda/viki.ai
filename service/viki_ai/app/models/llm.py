@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, ForeignKey
+from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from app.utils.database import Base
 from datetime import datetime
@@ -13,6 +13,7 @@ class LLM(Base):
     llc_endpoint_url = Column(String(4000))
     llc_api_key = Column(String(240))
     llc_fls_id = Column(String(80), ForeignKey("file_store.fls_id", ondelete="SET NULL"))
+    llc_proxy_required = Column(Boolean, default=False)
     created_by = Column(String(80))
     last_updated_by = Column(String(80))
     creation_dt = Column(DateTime, default=datetime.utcnow)

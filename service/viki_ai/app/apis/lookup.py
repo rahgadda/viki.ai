@@ -67,19 +67,12 @@ def create_lookupType(
             detail=f"Lookup type '{lookupType.lookupType}' already exists"
         )
     
-    # Set the createdBy field from the username header
-    lookupType_data = lookupType.dict()
-    lookupType_data['createdBy'] = username
+    # Create lookup type using schema data with aliases
+    lookupType_data = lookupType.dict(by_alias=True)
+    lookupType_data['created_by'] = username
+    lookupType_data['last_updated_by'] = username  # Set lastUpdatedBy to same user for creation
     
-    # Map schema fields to database fields
-    db_data = {
-        'lkt_type': lookupType_data['lookupType'],
-        'lkt_description': lookupType_data.get('lookupDescription'),
-        'created_by': lookupType_data['createdBy'],
-        'last_updated_by': username  # Set lastUpdatedBy to same user for creation
-    }
-    
-    db_lookupType = LookupTypes(**db_data)
+    db_lookupType = LookupTypes(**lookupType_data)
     db.add(db_lookupType)
     db.commit()
     db.refresh(db_lookupType)
@@ -102,18 +95,12 @@ def update_lookupType(
         )
     
     # Update only provided fields and set last_updated_by
-    update_data = lookupType_update.dict(exclude_unset=True)
-    update_data['lastUpdatedBy'] = username
+    update_data = lookupType_update.dict(exclude_unset=True, by_alias=True)
+    update_data['last_updated_by'] = username
     
-    # Map schema fields to database fields
-    field_mapping = {
-        'lookupDescription': 'lkt_description',
-        'lastUpdatedBy': 'last_updated_by'
-    }
-    
-    for schema_field, value in update_data.items():
-        db_field = field_mapping.get(schema_field, schema_field)
-        setattr(db_lookupType, db_field, value)
+    for field, value in update_data.items():
+        if hasattr(db_lookupType, field):
+            setattr(db_lookupType, field, value)
     
     db.commit()
     db.refresh(db_lookupType)
@@ -213,22 +200,12 @@ def create_lookup_detail(
             detail=f"Lookup detail '{lookup_detail.lookupDetailCode}' already exists for type '{lookupType}'"
         )
     
-    # Set the created_by field from the username header
-    lookup_detail_data = lookup_detail.dict()
-    lookup_detail_data['createdBy'] = username
+    # Create lookup detail using schema data with aliases
+    lookup_detail_data = lookup_detail.dict(by_alias=True)
+    lookup_detail_data['created_by'] = username
+    lookup_detail_data['last_updated_by'] = username  # Set lastUpdatedBy to same user for creation
     
-    # Map schema fields to database fields
-    db_data = {
-        'lkd_lkt_type': lookup_detail_data['lookupType'],
-        'lkd_code': lookup_detail_data['lookupDetailCode'],
-        'lkd_description': lookup_detail_data.get('lookupDetailDescription'),
-        'lkd_sub_code': lookup_detail_data.get('lookupDetailSubCode'),
-        'lkd_sort': lookup_detail_data.get('lookupDetailSort'),
-        'created_by': lookup_detail_data['createdBy'],
-        'last_updated_by': username  # Set lastUpdatedBy to same user for creation
-    }
-    
-    db_lookup_detail = LookupDetails(**db_data)
+    db_lookup_detail = LookupDetails(**lookup_detail_data)
     db.add(db_lookup_detail)
     db.commit()
     db.refresh(db_lookup_detail)
@@ -255,20 +232,12 @@ def update_lookup_detail(
         )
     
     # Update only provided fields and set last_updated_by
-    update_data = lookup_detail_update.dict(exclude_unset=True)
-    update_data['lastUpdatedBy'] = username
+    update_data = lookup_detail_update.dict(exclude_unset=True, by_alias=True)
+    update_data['last_updated_by'] = username
     
-    # Map schema fields to database fields
-    field_mapping = {
-        'lookupDetailDescription': 'lkd_description',
-        'lookupDetailSubCode': 'lkd_sub_code',
-        'lookupDetailSort': 'lkd_sort',
-        'lastUpdatedBy': 'last_updated_by'
-    }
-    
-    for schema_field, value in update_data.items():
-        db_field = field_mapping.get(schema_field, schema_field)
-        setattr(db_lookup_detail, db_field, value)
+    for field, value in update_data.items():
+        if hasattr(db_lookup_detail, field):
+            setattr(db_lookup_detail, field, value)
     
     db.commit()
     db.refresh(db_lookup_detail)
@@ -350,19 +319,12 @@ def create_lookup_lookupDetails_bulk(
                 detail=f"Lookup detail '{lookup_detail.lookupDetailCode}' already exists for type '{lookupType}'"
             )
         
-        # Map schema fields to database fields
-        lookup_detail_data = lookup_detail.dict()
-        db_data = {
-            'lkd_lkt_type': lookup_detail_data['lookupType'],
-            'lkd_code': lookup_detail_data['lookupDetailCode'],
-            'lkd_description': lookup_detail_data.get('lookupDetailDescription'),
-            'lkd_sub_code': lookup_detail_data.get('lookupDetailSubCode'),
-            'lkd_sort': lookup_detail_data.get('lookupDetailSort'),
-            'created_by': username,  # Set createdBy from username header
-            'last_updated_by': username  # Set lastUpdatedBy to same user for creation
-        }
+        # Create lookup detail using schema data with aliases
+        lookup_detail_data = lookup_detail.dict(by_alias=True)
+        lookup_detail_data['created_by'] = username  # Set createdBy from username header
+        lookup_detail_data['last_updated_by'] = username  # Set lastUpdatedBy to same user for creation
         
-        db_lookup_detail = LookupDetails(**db_data)
+        db_lookup_detail = LookupDetails(**lookup_detail_data)
         db.add(db_lookup_detail)
         created_lookupDetails.append(db_lookup_detail)
     

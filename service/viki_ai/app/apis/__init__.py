@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from .lookup import router as lookup_router
 from .fileStore import router as fileStore_router
+from .llm import router as llm_router
 
 # Create main API router
 api_router = APIRouter()
@@ -8,5 +9,6 @@ api_router = APIRouter()
 # Include all sub-routers
 api_router.include_router(lookup_router, tags=["Lookup Management"])
 api_router.include_router(fileStore_router, tags=["File Store Management"])
+api_router.include_router(llm_router, tags=["LLM Management"])
 
 __all__ = ["api_router"]

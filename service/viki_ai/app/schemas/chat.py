@@ -4,60 +4,70 @@ from typing import Optional, List, Dict, Any, Literal
 
 
 class ChatSessionBase(BaseModel):
-    cht_name: str = Field(..., max_length=240, description="Chat session name")
-    cht_agt_id: str = Field(..., max_length=80, description="Agent ID")
+    chatName: str = Field(..., max_length=240, description="Chat session name", alias="cht_name")
+    chatAgentId: str = Field(..., max_length=80, description="Agent ID", alias="cht_agt_id")
+
+    class Config:
+        populate_by_name = True
 
 
 class ChatSessionCreate(ChatSessionBase):
-    cht_id: str = Field(..., max_length=80, description="Chat session ID")
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
+    chatId: str = Field(..., max_length=80, description="Chat session ID", alias="cht_id")
 
 
 class ChatSessionUpdate(BaseModel):
-    cht_name: Optional[str] = Field(None, max_length=240, description="Chat session name")
-    cht_agt_id: Optional[str] = Field(None, max_length=80, description="Agent ID")
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
+    chatName: Optional[str] = Field(None, max_length=240, description="Chat session name", alias="cht_name")
+    chatAgentId: Optional[str] = Field(None, max_length=80, description="Agent ID", alias="cht_agt_id")
+
+    class Config:
+        populate_by_name = True
 
 
 class ChatSession(ChatSessionBase):
-    cht_id: str = Field(..., max_length=80, description="Chat session ID")
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
-    creation_dt: datetime = Field(..., description="Creation timestamp")
-    last_updated_dt: datetime = Field(..., description="Last updated timestamp")
+    chatId: str = Field(..., max_length=80, description="Chat session ID", alias="cht_id")
+    createdBy: Optional[str] = Field(None, max_length=80, description="Created by user", alias="created_by")
+    lastUpdatedBy: Optional[str] = Field(None, max_length=80, description="Last updated by user", alias="last_updated_by")
+    creationDt: datetime = Field(..., description="Creation timestamp", alias="creation_dt")
+    lastUpdatedDt: datetime = Field(..., description="Last updated timestamp", alias="last_updated_dt")
 
     class Config:
         from_attributes = True
+        populate_by_name = True
 
 
 class ChatMessageBase(BaseModel):
-    msg_cht_id: str = Field(..., max_length=80, description="Chat session ID")
-    msg_agent_name: str = Field(..., max_length=240, description="Agent name")
-    msg_role: Literal["USER", "AI"] = Field(..., description="Message role: USER or AI")
-    msg_content: Dict[str, Any] = Field(..., description="Message content as JSON")
+    messageChatId: str = Field(..., max_length=80, description="Chat session ID", alias="msg_cht_id")
+    messageAgentName: str = Field(..., max_length=240, description="Agent name", alias="msg_agent_name")
+    messageRole: Literal["USER", "AI"] = Field(..., description="Message role: USER or AI", alias="msg_role")
+    messageContent: Dict[str, Any] = Field(..., description="Message content as JSON", alias="msg_content")
+
+    class Config:
+        populate_by_name = True
 
 
 class ChatMessageCreate(ChatMessageBase):
-    msg_id: str = Field(..., max_length=80, description="Message ID")
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
+    messageId: str = Field(..., max_length=80, description="Message ID", alias="msg_id")
 
 
 class ChatMessageUpdate(BaseModel):
-    msg_agent_name: Optional[str] = Field(None, max_length=240, description="Agent name")
-    msg_role: Optional[Literal["USER", "AI"]] = Field(None, description="Message role: USER or AI")
-    msg_content: Optional[Dict[str, Any]] = Field(None, description="Message content as JSON")
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
+    messageAgentName: Optional[str] = Field(None, max_length=240, description="Agent name", alias="msg_agent_name")
+    messageRole: Optional[Literal["USER", "AI"]] = Field(None, description="Message role: USER or AI", alias="msg_role")
+    messageContent: Optional[Dict[str, Any]] = Field(None, description="Message content as JSON", alias="msg_content")
+
+    class Config:
+        populate_by_name = True
 
 
 class ChatMessage(ChatMessageBase):
-    msg_id: str = Field(..., max_length=80, description="Message ID")
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
-    creation_dt: datetime = Field(..., description="Creation timestamp")
-    last_updated_dt: datetime = Field(..., description="Last updated timestamp")
+    messageId: str = Field(..., max_length=80, description="Message ID", alias="msg_id")
+    createdBy: Optional[str] = Field(None, max_length=80, description="Created by user", alias="created_by")
+    lastUpdatedBy: Optional[str] = Field(None, max_length=80, description="Last updated by user", alias="last_updated_by")
+    creationDt: datetime = Field(..., description="Creation timestamp", alias="creation_dt")
+    lastUpdatedDt: datetime = Field(..., description="Last updated timestamp", alias="last_updated_dt")
 
     class Config:
         from_attributes = True
+        populate_by_name = True
 
 
 # Response models with relationships
@@ -66,4 +76,4 @@ class ChatSessionWithMessages(ChatSession):
 
 
 class ChatMessageWithSession(ChatMessage):
-    chat_session: Optional[ChatSession] = Field(None, description="Associated chat session")
+    chatSession: Optional[ChatSession] = Field(None, description="Associated chat session", alias="chat_session")

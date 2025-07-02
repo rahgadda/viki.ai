@@ -4,91 +4,110 @@ from typing import Optional, List
 
 
 class ToolBase(BaseModel):
-    tol_name: str = Field(..., max_length=240, description="Tool name")
-    tol_description: Optional[str] = Field(None, max_length=4000, description="Tool description")
-    tol_mcp_command: str = Field(..., max_length=240, description="MCP command")
-    tol_mcp_function_count: int = Field(default=0, description="MCP function count")
+    toolName: str = Field(..., max_length=240, description="Tool name", alias="tol_name")
+    toolDescription: Optional[str] = Field(None, max_length=4000, description="Tool description", alias="tol_description")
+    toolMcpCommand: str = Field(..., max_length=240, description="MCP command", alias="tol_mcp_command")
+    toolMcpFunctionCount: int = Field(default=0, description="MCP function count", alias="tol_mcp_function_count")
+    toolProxyRequired: Optional[bool] = Field(False, description="Whether proxy is required for this tool", alias="tol_proxy_required")
+
+    class Config:
+        populate_by_name = True
 
 
 class ToolCreate(ToolBase):
-    tol_id: str = Field(..., max_length=80, description="Tool ID")
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
+    toolId: str = Field(..., max_length=80, description="Tool ID", alias="tol_id")
 
 
 class ToolUpdate(BaseModel):
-    tol_name: Optional[str] = Field(None, max_length=240, description="Tool name")
-    tol_description: Optional[str] = Field(None, max_length=4000, description="Tool description")
-    tol_mcp_command: Optional[str] = Field(None, max_length=240, description="MCP command")
-    tol_mcp_function_count: Optional[int] = Field(None, description="MCP function count")
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
+    toolName: Optional[str] = Field(None, max_length=240, description="Tool name", alias="tol_name")
+    toolDescription: Optional[str] = Field(None, max_length=4000, description="Tool description", alias="tol_description")
+    toolMcpCommand: Optional[str] = Field(None, max_length=240, description="MCP command", alias="tol_mcp_command")
+    toolMcpFunctionCount: Optional[int] = Field(None, description="MCP function count", alias="tol_mcp_function_count")
+    toolProxyRequired: Optional[bool] = Field(None, description="Whether proxy is required for this tool", alias="tol_proxy_required")
+
+    class Config:
+        populate_by_name = True
 
 
 class Tool(ToolBase):
-    tol_id: str = Field(..., max_length=80, description="Tool ID")
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
-    creation_dt: datetime = Field(..., description="Creation timestamp")
-    last_updated_dt: datetime = Field(..., description="Last updated timestamp")
+    toolId: str = Field(..., max_length=80, description="Tool ID", alias="tol_id")
+    createdBy: Optional[str] = Field(None, max_length=80, description="Created by user", alias="created_by")
+    lastUpdatedBy: Optional[str] = Field(None, max_length=80, description="Last updated by user", alias="last_updated_by")
+    creationDt: datetime = Field(..., description="Creation timestamp", alias="creation_dt")
+    lastUpdatedDt: datetime = Field(..., description="Last updated timestamp", alias="last_updated_dt")
 
     class Config:
         from_attributes = True
+        populate_by_name = True
 
 
 class ToolEnvironmentVariableBase(BaseModel):
-    tev_tol_id: str = Field(..., max_length=80, description="Tool ID")
-    tev_key: str = Field(..., max_length=240, description="Environment variable key")
-    tev_value: Optional[str] = Field(None, max_length=4000, description="Environment variable value")
+    toolId: str = Field(..., max_length=80, description="Tool ID", alias="tev_tol_id")
+    envVarKey: str = Field(..., max_length=240, description="Environment variable key", alias="tev_key")
+    envVarValue: Optional[str] = Field(None, max_length=4000, description="Environment variable value", alias="tev_value")
+
+    class Config:
+        populate_by_name = True
 
 
 class ToolEnvironmentVariableCreate(ToolEnvironmentVariableBase):
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
+    pass
 
 
 class ToolEnvironmentVariableUpdate(BaseModel):
-    tev_value: Optional[str] = Field(None, max_length=4000, description="Environment variable value")
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
+    envVarValue: Optional[str] = Field(None, max_length=4000, description="Environment variable value", alias="tev_value")
+
+    class Config:
+        populate_by_name = True
 
 
 class ToolEnvironmentVariable(ToolEnvironmentVariableBase):
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
-    creation_dt: datetime = Field(..., description="Creation timestamp")
-    last_updated_dt: datetime = Field(..., description="Last updated timestamp")
+    createdBy: Optional[str] = Field(None, max_length=80, description="Created by user", alias="created_by")
+    lastUpdatedBy: Optional[str] = Field(None, max_length=80, description="Last updated by user", alias="last_updated_by")
+    creationDt: datetime = Field(..., description="Creation timestamp", alias="creation_dt")
+    lastUpdatedDt: datetime = Field(..., description="Last updated timestamp", alias="last_updated_dt")
 
     class Config:
         from_attributes = True
+        populate_by_name = True
         
 
 
 class ToolResourceBase(BaseModel):
-    tre_tol_id: str = Field(..., max_length=80, description="Tool ID")
-    tre_resource_name: str = Field(..., max_length=240, description="Resource name")
-    tre_resource_description: Optional[str] = Field(None, max_length=4000, description="Resource description")
+    toolId: str = Field(..., max_length=80, description="Tool ID", alias="tre_tol_id")
+    resourceName: str = Field(..., max_length=240, description="Resource name", alias="tre_resource_name")
+    resourceDescription: Optional[str] = Field(None, max_length=4000, description="Resource description", alias="tre_resource_description")
+
+    class Config:
+        populate_by_name = True
 
 
 class ToolResourceCreate(ToolResourceBase):
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
+    pass
 
 
 class ToolResourceUpdate(BaseModel):
-    tre_resource_description: Optional[str] = Field(None, max_length=4000, description="Resource description")
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
+    resourceDescription: Optional[str] = Field(None, max_length=4000, description="Resource description", alias="tre_resource_description")
+
+    class Config:
+        populate_by_name = True
 
 
 class ToolResource(ToolResourceBase):
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
-    creation_dt: datetime = Field(..., description="Creation timestamp")
-    last_updated_dt: datetime = Field(..., description="Last updated timestamp")
+    createdBy: Optional[str] = Field(None, max_length=80, description="Created by user", alias="created_by")
+    lastUpdatedBy: Optional[str] = Field(None, max_length=80, description="Last updated by user", alias="last_updated_by")
+    creationDt: datetime = Field(..., description="Creation timestamp", alias="creation_dt")
+    lastUpdatedDt: datetime = Field(..., description="Last updated timestamp", alias="last_updated_dt")
 
     class Config:
         from_attributes = True
+        populate_by_name = True
         
 
 
 # Response models with relationships
 class ToolWithDetails(Tool):
-    environment_variables: List[ToolEnvironmentVariable] = Field(default_factory=list, description="Environment variables")
+    environmentVariables: List[ToolEnvironmentVariable] = Field(default_factory=list, description="Environment variables", alias="environment_variables")
     resources: List[ToolResource] = Field(default_factory=list, description="Tool resources")
 
 

@@ -4,54 +4,63 @@ from typing import Optional, List
 
 
 class KnowledgeBaseDetailsBase(BaseModel):
-    knb_name: str = Field(..., max_length=240, description="Knowledge base name")
-    knb_description: Optional[str] = Field(None, max_length=4000, description="Knowledge base description")
+    knowledgeBaseName: str = Field(..., max_length=240, description="Knowledge base name", alias="knb_name")
+    knowledgeBaseDescription: Optional[str] = Field(None, max_length=4000, description="Knowledge base description", alias="knb_description")
+
+    class Config:
+        populate_by_name = True
 
 
 class KnowledgeBaseDetailsCreate(KnowledgeBaseDetailsBase):
-    knb_id: str = Field(..., max_length=80, description="Knowledge base ID")
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
+    knowledgeBaseId: str = Field(..., max_length=80, description="Knowledge base ID", alias="knb_id")
 
 
 class KnowledgeBaseDetailsUpdate(BaseModel):
-    knb_name: Optional[str] = Field(None, max_length=240, description="Knowledge base name")
-    knb_description: Optional[str] = Field(None, max_length=4000, description="Knowledge base description")
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
+    knowledgeBaseName: Optional[str] = Field(None, max_length=240, description="Knowledge base name", alias="knb_name")
+    knowledgeBaseDescription: Optional[str] = Field(None, max_length=4000, description="Knowledge base description", alias="knb_description")
+
+    class Config:
+        populate_by_name = True
 
 
 class KnowledgeBaseDetails(KnowledgeBaseDetailsBase):
-    knb_id: str = Field(..., max_length=80, description="Knowledge base ID")
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
-    creation_dt: datetime = Field(..., description="Creation timestamp")
-    last_updated_dt: datetime = Field(..., description="Last updated timestamp")
+    knowledgeBaseId: str = Field(..., max_length=80, description="Knowledge base ID", alias="knb_id")
+    createdBy: Optional[str] = Field(None, max_length=80, description="Created by user", alias="created_by")
+    lastUpdatedBy: Optional[str] = Field(None, max_length=80, description="Last updated by user", alias="last_updated_by")
+    creationDt: datetime = Field(..., description="Creation timestamp", alias="creation_dt")
+    lastUpdatedDt: datetime = Field(..., description="Last updated timestamp", alias="last_updated_dt")
 
     class Config:
         from_attributes = True
+        populate_by_name = True
         
 
 
 class KnowledgeBaseDocumentsBase(BaseModel):
-    kbd_knb_id: str = Field(..., max_length=80, description="Knowledge base ID")
-    kbd_fls_id: str = Field(..., max_length=80, description="File store ID")
+    knowledgeBaseId: str = Field(..., max_length=80, description="Knowledge base ID", alias="kbd_knb_id")
+    fileStoreId: str = Field(..., max_length=80, description="File store ID", alias="kbd_fls_id")
+
+    class Config:
+        populate_by_name = True
 
 
 class KnowledgeBaseDocumentsCreate(KnowledgeBaseDocumentsBase):
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
+    pass
 
 
 class KnowledgeBaseDocumentsUpdate(BaseModel):
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
+    pass
 
 
 class KnowledgeBaseDocuments(KnowledgeBaseDocumentsBase):
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
-    creation_dt: datetime = Field(..., description="Creation timestamp")
-    last_updated_dt: datetime = Field(..., description="Last updated timestamp")
+    createdBy: Optional[str] = Field(None, max_length=80, description="Created by user", alias="created_by")
+    lastUpdatedBy: Optional[str] = Field(None, max_length=80, description="Last updated by user", alias="last_updated_by")
+    creationDt: datetime = Field(..., description="Creation timestamp", alias="creation_dt")
+    lastUpdatedDt: datetime = Field(..., description="Last updated timestamp", alias="last_updated_dt")
 
     class Config:
         from_attributes = True
+        populate_by_name = True
         
 
 
@@ -61,4 +70,4 @@ class KnowledgeBaseDetailsWithDocuments(KnowledgeBaseDetails):
 
 
 class KnowledgeBaseDocumentsWithDetails(KnowledgeBaseDocuments):
-    knowledge_base: Optional[KnowledgeBaseDetails] = Field(None, description="Associated knowledge base")
+    knowledgeBase: Optional[KnowledgeBaseDetails] = Field(None, description="Associated knowledge base", alias="knowledge_base")

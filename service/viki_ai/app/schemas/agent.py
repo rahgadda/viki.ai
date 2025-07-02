@@ -4,86 +4,99 @@ from typing import Optional, List
 
 
 class AgentBase(BaseModel):
-    agt_name: str = Field(..., max_length=240, description="Agent name")
-    agt_description: Optional[str] = Field(None, max_length=4000, description="Agent description")
-    agt_llc_id: str = Field(..., max_length=80, description="LLM configuration ID")
-    agt_system_prompt: Optional[str] = Field(None, max_length=4000, description="System prompt for the agent")
+    agentName: str = Field(..., max_length=240, description="Agent name", alias="agt_name")
+    agentDescription: Optional[str] = Field(None, max_length=4000, description="Agent description", alias="agt_description")
+    agentLlmId: str = Field(..., max_length=80, description="LLM configuration ID", alias="agt_llc_id")
+    agentSystemPrompt: Optional[str] = Field(None, max_length=4000, description="System prompt for the agent", alias="agt_system_prompt")
+
+    class Config:
+        populate_by_name = True
 
 
 class AgentCreate(AgentBase):
-    agt_id: str = Field(..., max_length=80, description="Agent ID")
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
+    agentId: str = Field(..., max_length=80, description="Agent ID", alias="agt_id")
 
 
 class AgentUpdate(BaseModel):
-    agt_name: Optional[str] = Field(None, max_length=240, description="Agent name")
-    agt_description: Optional[str] = Field(None, max_length=4000, description="Agent description")
-    agt_llc_id: Optional[str] = Field(None, max_length=80, description="LLM configuration ID")
-    agt_system_prompt: Optional[str] = Field(None, max_length=4000, description="System prompt for the agent")
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
+    agentName: Optional[str] = Field(None, max_length=240, description="Agent name", alias="agt_name")
+    agentDescription: Optional[str] = Field(None, max_length=4000, description="Agent description", alias="agt_description")
+    agentLlmId: Optional[str] = Field(None, max_length=80, description="LLM configuration ID", alias="agt_llc_id")
+    agentSystemPrompt: Optional[str] = Field(None, max_length=4000, description="System prompt for the agent", alias="agt_system_prompt")
+
+    class Config:
+        populate_by_name = True
 
 
 class Agent(AgentBase):
-    agt_id: str = Field(..., max_length=80, description="Agent ID")
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
-    creation_dt: datetime = Field(..., description="Creation timestamp")
-    last_updated_dt: datetime = Field(..., description="Last updated timestamp")
+    agentId: str = Field(..., max_length=80, description="Agent ID", alias="agt_id")
+    createdBy: Optional[str] = Field(None, max_length=80, description="Created by user", alias="created_by")
+    lastUpdatedBy: Optional[str] = Field(None, max_length=80, description="Last updated by user", alias="last_updated_by")
+    creationDt: datetime = Field(..., description="Creation timestamp", alias="creation_dt")
+    lastUpdatedDt: datetime = Field(..., description="Last updated timestamp", alias="last_updated_dt")
 
     class Config:
         from_attributes = True
+        populate_by_name = True
         
 
 
 class AgentToolBase(BaseModel):
-    ato_agt_id: str = Field(..., max_length=80, description="Agent ID")
-    ato_tol_id: str = Field(..., max_length=80, description="Tool ID")
+    agentId: str = Field(..., max_length=80, description="Agent ID", alias="ato_agt_id")
+    toolId: str = Field(..., max_length=80, description="Tool ID", alias="ato_tol_id")
+
+    class Config:
+        populate_by_name = True
 
 
 class AgentToolCreate(AgentToolBase):
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
+    pass
 
 
 class AgentToolUpdate(BaseModel):
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
+    pass
 
 
 class AgentTool(AgentToolBase):
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
-    creation_dt: datetime = Field(..., description="Creation timestamp")
-    last_updated_dt: datetime = Field(..., description="Last updated timestamp")
+    createdBy: Optional[str] = Field(None, max_length=80, description="Created by user", alias="created_by")
+    lastUpdatedBy: Optional[str] = Field(None, max_length=80, description="Last updated by user", alias="last_updated_by")
+    creationDt: datetime = Field(..., description="Creation timestamp", alias="creation_dt")
+    lastUpdatedDt: datetime = Field(..., description="Last updated timestamp", alias="last_updated_dt")
 
     class Config:
         from_attributes = True
+        populate_by_name = True
         
 
 
 class AgentKnowledgeBaseBase(BaseModel):
-    akb_agt_id: str = Field(..., max_length=80, description="Agent ID")
-    akb_knb_id: str = Field(..., max_length=80, description="Knowledge base ID")
+    agentId: str = Field(..., max_length=80, description="Agent ID", alias="akb_agt_id")
+    knowledgeBaseId: str = Field(..., max_length=80, description="Knowledge base ID", alias="akb_knb_id")
+
+    class Config:
+        populate_by_name = True
 
 
 class AgentKnowledgeBaseCreate(AgentKnowledgeBaseBase):
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
+    pass
 
 
 class AgentKnowledgeBaseUpdate(BaseModel):
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
+    pass
 
 
 class AgentKnowledgeBase(AgentKnowledgeBaseBase):
-    created_by: Optional[str] = Field(None, max_length=80, description="Created by user")
-    last_updated_by: Optional[str] = Field(None, max_length=80, description="Last updated by user")
-    creation_dt: datetime = Field(..., description="Creation timestamp")
-    last_updated_dt: datetime = Field(..., description="Last updated timestamp")
+    createdBy: Optional[str] = Field(None, max_length=80, description="Created by user", alias="created_by")
+    lastUpdatedBy: Optional[str] = Field(None, max_length=80, description="Last updated by user", alias="last_updated_by")
+    creationDt: datetime = Field(..., description="Creation timestamp", alias="creation_dt")
+    lastUpdatedDt: datetime = Field(..., description="Last updated timestamp", alias="last_updated_dt")
 
     class Config:
         from_attributes = True
+        populate_by_name = True
         
 
 
 # Response models with relationships
 class AgentWithRelations(Agent):
-    agent_tools: List[AgentTool] = Field(default_factory=list, description="Associated tools")
-    agent_knowledge_bases: List[AgentKnowledgeBase] = Field(default_factory=list, description="Associated knowledge bases")
+    agentTools: List[AgentTool] = Field(default_factory=list, description="Associated tools", alias="agent_tools")
+    agentKnowledgeBases: List[AgentKnowledgeBase] = Field(default_factory=list, description="Associated knowledge bases", alias="agent_knowledge_bases")

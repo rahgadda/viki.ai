@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from app.utils.database import Base
 from datetime import datetime
@@ -12,6 +12,7 @@ class Tool(Base):
     tol_description = Column(String(4000))
     tol_mcp_command = Column(String(240), nullable=False)
     tol_mcp_function_count = Column(Integer, default=0)
+    tol_proxy_required = Column(Boolean, default=False)
     created_by = Column(String(80))
     last_updated_by = Column(String(80))
     creation_dt = Column(DateTime, default=datetime.utcnow)

@@ -75,8 +75,8 @@ def get_file_store_metadata(
 
 @router.post("/fileStore/upload", response_model=FileStoreMetadata, status_code=status.HTTP_201_CREATED)
 def upload_file(
-    source_type_cd: str,
-    source_id: str,
+    sourceTypeLookupCode: str,
+    sourceId: str,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     username: str = Depends(get_username)
@@ -88,18 +88,24 @@ def upload_file(
     # Read file content
     file_content = file.file.read()
     
-    # Create file store record
-    db_data = {
-        'fls_id': fileStoreId,
-        'fls_source_type_cd': source_type_cd,
-        'fls_source_id': source_id,
-        'fls_file_name': file.filename,
-        'fls_file_content': file_content,
-        'created_by': username,
-        'last_updated_by': username
-    }
+    # Handle case where filename might be None
+    filename = file.filename or "uploaded_file"
     
-    db_file_store = FileStore(**db_data)
+    # Create file store using schema with database field names (aliases)
+    file_store_create = FileStoreCreate(
+        fls_source_type_cd=sourceTypeLookupCode,
+        fls_source_id=sourceId,
+        fls_file_name=filename,
+        fls_file_content=file_content
+    )
+    
+    # Convert to database format using aliases
+    file_store_data = file_store_create.dict(by_alias=True)
+    file_store_data['fls_id'] = fileStoreId
+    file_store_data['created_by'] = username
+    file_store_data['last_updated_by'] = username
+    
+    db_file_store = FileStore(**file_store_data)
     db.add(db_file_store)
     db.commit()
     db.refresh(db_file_store)
@@ -122,21 +128,12 @@ def update_file_store(
         )
     
     # Update only provided fields and set last_updated_by
-    update_data = file_store_update.dict(exclude_unset=True)
-    update_data['lastUpdatedBy'] = username
+    update_data = file_store_update.dict(exclude_unset=True, by_alias=True)
+    update_data['last_updated_by'] = username
     
-    # Map schema fields to database fields
-    field_mapping = {
-        'fileStoreSourceTypeCd': 'fls_source_type_cd',
-        'fileStoreSourceId': 'fls_source_id',
-        'fileStoreFileName': 'fls_file_name',
-        'fileStoreFileContent': 'fls_file_content',
-        'lastUpdatedBy': 'last_updated_by'
-    }
-    
-    for schema_field, value in update_data.items():
-        db_field = field_mapping.get(schema_field, schema_field)
-        setattr(db_file_store, db_field, value)
+    for field, value in update_data.items():
+        if hasattr(db_file_store, field):
+            setattr(db_file_store, field, value)
     
     db.commit()
     db.refresh(db_file_store)
