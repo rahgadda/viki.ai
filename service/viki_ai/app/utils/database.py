@@ -5,7 +5,8 @@ from .config import settings
 
 DB_ENGINE = None
 SessionLocal = None
-Base = None
+# Initialize Base immediately so models can use it during import
+Base = declarative_base()
 
 # Database connection configuration
 def create_db_engine():
@@ -17,7 +18,7 @@ def create_db_engine():
     """
     try:
 
-        global DB_ENGINE, SessionLocal, Base
+        global DB_ENGINE, SessionLocal
 
         if DB_ENGINE is not None:
             return DB_ENGINE
@@ -29,7 +30,24 @@ def create_db_engine():
                 connection.execute(text("SELECT 1"))
 
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=DB_ENGINE)
-        Base = declarative_base()
         return DB_ENGINE
     except Exception as e:
         settings.logger.error(f"Failed to create database engine: {str(e)}")
+
+
+def get_db():
+    """
+    Dependency function to get database session for FastAPI endpoints
+    """
+    global SessionLocal
+    if SessionLocal is None:
+        create_db_engine()  # Ensure engine is created
+    
+    if SessionLocal is None:
+        raise RuntimeError("Database session not initialized")
+    
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
