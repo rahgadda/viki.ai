@@ -28,7 +28,6 @@ class ChatSession(ChatSessionBase):
 
     class Config:
         from_attributes = True
-        orm_mode = True
 
 
 class ChatMessageBase(BaseModel):
@@ -59,7 +58,6 @@ class ChatMessage(ChatMessageBase):
 
     class Config:
         from_attributes = True
-        orm_mode = True
 
 
 # Response models with relationships

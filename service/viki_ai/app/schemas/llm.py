@@ -34,7 +34,7 @@ class LLM(LLMBase):
 
     class Config:
         from_attributes = True
-        orm_mode = True
+        
 
 
 # For security purposes, we might want to exclude sensitive information like API keys
@@ -51,4 +51,4 @@ class LLMPublic(BaseModel):
 
     class Config:
         from_attributes = True
-        orm_mode = True
+        

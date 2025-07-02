@@ -17,6 +17,43 @@ class FileStore(Base):
     creation_dt = Column(DateTime, default=datetime.utcnow)
     last_updated_dt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
-    llm_configs = relationship("LLM", back_populates="config_file")
-    knowledge_base_documents = relationship("KnowledgeBaseDocuments", back_populates="file")
+    # Relationships - commented out for now to avoid circular dependency issues
+    # llm_configs = relationship("LLM", back_populates="config_file", lazy="select")
+    # knowledge_base_documents = relationship("KnowledgeBaseDocuments", back_populates="file", lazy="select")
+    
+    # Property mappings for Pydantic schema compatibility
+    @property
+    def fileStoreId(self):
+        return self.fls_id
+    
+    @property
+    def fileStoreSourceTypeCd(self):
+        return self.fls_source_type_cd
+    
+    @property
+    def fileStoreSourceId(self):
+        return self.fls_source_id
+    
+    @property
+    def fileStoreFileName(self):
+        return self.fls_file_name
+    
+    @property
+    def fileStoreFileContent(self):
+        return self.fls_file_content
+    
+    @property
+    def createdBy(self):
+        return self.created_by
+    
+    @property
+    def lastUpdatedBy(self):
+        return self.last_updated_by
+    
+    @property
+    def creationDt(self):
+        return self.creation_dt
+    
+    @property
+    def lastUpdatedDt(self):
+        return self.last_updated_dt

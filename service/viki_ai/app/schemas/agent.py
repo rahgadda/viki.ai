@@ -32,7 +32,7 @@ class Agent(AgentBase):
 
     class Config:
         from_attributes = True
-        orm_mode = True
+        
 
 
 class AgentToolBase(BaseModel):
@@ -56,7 +56,7 @@ class AgentTool(AgentToolBase):
 
     class Config:
         from_attributes = True
-        orm_mode = True
+        
 
 
 class AgentKnowledgeBaseBase(BaseModel):
@@ -80,7 +80,7 @@ class AgentKnowledgeBase(AgentKnowledgeBaseBase):
 
     class Config:
         from_attributes = True
-        orm_mode = True
+        
 
 
 # Response models with relationships

@@ -1,1 +1,49 @@
-GET http://0.0.0.0:8000/api/v0.0.1/lookupTypes
+### Create LookupType
+POST http://localhost:8000/api/v0.0.1/lookupTypes
+Content-Type: application/json
+x-username: rahul
+
+{
+  "lookupType": "SOURCE_TYPE",
+  "lookupDescription": "FILE SOURCE TYPE"
+}
+
+### 
+GET http://localhost:8000/api/v0.0.1/lookupTypes
+x-username: rahul
+
+###
+DELETE http://localhost:8000/api/v0.0.1/lookupTypes/string
+x-username: rahul
+
+### Create LookupDetail
+POST http://localhost:8000/api/v0.0.1/lookupTypes/SOURCE_TYPE/lookupDetails/bulk
+Content-Type: application/json
+x-username: rahul
+
+[
+    {
+        "lookupType": "SOURCE_TYPE",
+        "lookupDetailCode": "LLM",
+        "lookupDetailDescription": "LLM",
+        "lookupDetailSort": 1
+    },
+    {
+        "lookupType": "SOURCE_TYPE",
+        "lookupDetailCode": "KNOWLEDGE_BASE",
+        "lookupDetailDescription": "KNOWLEDGE BASE",
+        "lookupDetailSort": 2
+    }
+]
+
+### Get Lookup Details for a Type (Using query parameter)
+GET http://localhost:8000/api/v0.0.1/lookupDetails?lookupType=SOURCE_TYPE
+x-username: rahul
+
+###
+DELETE http://localhost:8000/api/v0.0.1/lookupTypes/SOURCE_TYPE/lookupDetails/LLM
+x-username: rahul
+
+###
+DELETE http://localhost:8000/api/v0.0.1/lookupTypes/SOURCE_TYPE/lookupDetails/KNOWLEDGE_BASE
+x-username: rahul

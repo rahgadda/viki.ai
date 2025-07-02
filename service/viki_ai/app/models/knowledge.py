@@ -32,5 +32,5 @@ class KnowledgeBaseDocuments(Base):
 
     # Relationships
     knowledge_base = relationship("KnowledgeBaseDetails", back_populates="documents")
-    file = relationship("FileStore", back_populates="knowledge_base_documents")
+    # file = relationship("FileStore", back_populates="knowledge_base_documents")
 

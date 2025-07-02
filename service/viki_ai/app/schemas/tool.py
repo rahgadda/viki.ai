@@ -57,7 +57,7 @@ class ToolEnvironmentVariable(ToolEnvironmentVariableBase):
 
     class Config:
         from_attributes = True
-        orm_mode = True
+        
 
 
 class ToolResourceBase(BaseModel):
@@ -83,7 +83,7 @@ class ToolResource(ToolResourceBase):
 
     class Config:
         from_attributes = True
-        orm_mode = True
+        
 
 
 # Response models with relationships

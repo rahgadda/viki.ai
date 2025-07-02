@@ -23,7 +23,7 @@ def get_username(x_username: str = Header(None, alias="x-username")) -> str:
     """
     Dependency to extract username from x-username header
     """
-    return x_username or "anonymous"
+    return x_username or "SYSTEM"
 
 # Lookup Types endpoints
 @router.get("/lookupTypes", response_model=List[LookupTypesSchema])
@@ -60,18 +60,26 @@ def create_lookupType(
 ):
     """Create a new lookup type"""
     # Check if lookup type already exists
-    existing_type = db.query(LookupTypes).filter(LookupTypes.lkt_type == lookupType.lkt_type).first()
+    existing_type = db.query(LookupTypes).filter(LookupTypes.lkt_type == lookupType.lookupType).first()
     if existing_type:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Lookup type '{lookupType.lkt_type}' already exists"
+            detail=f"Lookup type '{lookupType.lookupType}' already exists"
         )
     
-    # Set the created_by field from the username header
+    # Set the createdBy field from the username header
     lookupType_data = lookupType.dict()
-    lookupType_data['created_by'] = username
+    lookupType_data['createdBy'] = username
     
-    db_lookupType = LookupTypes(**lookupType_data)
+    # Map schema fields to database fields
+    db_data = {
+        'lkt_type': lookupType_data['lookupType'],
+        'lkt_description': lookupType_data.get('lookupDescription'),
+        'created_by': lookupType_data['createdBy'],
+        'last_updated_by': username  # Set lastUpdatedBy to same user for creation
+    }
+    
+    db_lookupType = LookupTypes(**db_data)
     db.add(db_lookupType)
     db.commit()
     db.refresh(db_lookupType)
@@ -95,10 +103,17 @@ def update_lookupType(
     
     # Update only provided fields and set last_updated_by
     update_data = lookupType_update.dict(exclude_unset=True)
-    update_data['last_updated_by'] = username
+    update_data['lastUpdatedBy'] = username
     
-    for field, value in update_data.items():
-        setattr(db_lookupType, field, value)
+    # Map schema fields to database fields
+    field_mapping = {
+        'lookupDescription': 'lkt_description',
+        'lastUpdatedBy': 'last_updated_by'
+    }
+    
+    for schema_field, value in update_data.items():
+        db_field = field_mapping.get(schema_field, schema_field)
+        setattr(db_lookupType, db_field, value)
     
     db.commit()
     db.refresh(db_lookupType)
@@ -181,28 +196,39 @@ def create_lookup_detail(
         )
     
     # Ensure the lookup detail is for the correct type
-    if lookup_detail.lkd_lkt_type != lookupType:
+    if lookup_detail.lookupType != lookupType:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Lookup detail type '{lookup_detail.lkd_lkt_type}' does not match URL parameter '{lookupType}'"
+            detail=f"Lookup detail type '{lookup_detail.lookupType}' does not match URL parameter '{lookupType}'"
         )
     
     # Check if lookup detail already exists
     existing_detail = db.query(LookupDetails).filter(
         LookupDetails.lkd_lkt_type == lookupType,
-        LookupDetails.lkd_code == lookup_detail.lkd_code
+        LookupDetails.lkd_code == lookup_detail.lookupDetailCode
     ).first()
     if existing_detail:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Lookup detail '{lookup_detail.lkd_code}' already exists for type '{lookupType}'"
+            detail=f"Lookup detail '{lookup_detail.lookupDetailCode}' already exists for type '{lookupType}'"
         )
     
     # Set the created_by field from the username header
     lookup_detail_data = lookup_detail.dict()
-    lookup_detail_data['created_by'] = username
+    lookup_detail_data['createdBy'] = username
     
-    db_lookup_detail = LookupDetails(**lookup_detail_data)
+    # Map schema fields to database fields
+    db_data = {
+        'lkd_lkt_type': lookup_detail_data['lookupType'],
+        'lkd_code': lookup_detail_data['lookupDetailCode'],
+        'lkd_description': lookup_detail_data.get('lookupDetailDescription'),
+        'lkd_sub_code': lookup_detail_data.get('lookupDetailSubCode'),
+        'lkd_sort': lookup_detail_data.get('lookupDetailSort'),
+        'created_by': lookup_detail_data['createdBy'],
+        'last_updated_by': username  # Set lastUpdatedBy to same user for creation
+    }
+    
+    db_lookup_detail = LookupDetails(**db_data)
     db.add(db_lookup_detail)
     db.commit()
     db.refresh(db_lookup_detail)
@@ -230,10 +256,19 @@ def update_lookup_detail(
     
     # Update only provided fields and set last_updated_by
     update_data = lookup_detail_update.dict(exclude_unset=True)
-    update_data['last_updated_by'] = username
+    update_data['lastUpdatedBy'] = username
     
-    for field, value in update_data.items():
-        setattr(db_lookup_detail, field, value)
+    # Map schema fields to database fields
+    field_mapping = {
+        'lookupDetailDescription': 'lkd_description',
+        'lookupDetailSubCode': 'lkd_sub_code',
+        'lookupDetailSort': 'lkd_sort',
+        'lastUpdatedBy': 'last_updated_by'
+    }
+    
+    for schema_field, value in update_data.items():
+        db_field = field_mapping.get(schema_field, schema_field)
+        setattr(db_lookup_detail, db_field, value)
     
     db.commit()
     db.refresh(db_lookup_detail)
@@ -283,7 +318,8 @@ def get_all_lookup_lookupDetails(
 def create_lookup_lookupDetails_bulk(
     lookupType: str,
     lookup_lookupDetails: List[LookupDetailsCreate],
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    username: str = Depends(get_username)
 ):
     """Create multiple lookup lookupDetails at once"""
     # Check if lookup type exists
@@ -297,24 +333,36 @@ def create_lookup_lookupDetails_bulk(
     created_lookupDetails = []
     for lookup_detail in lookup_lookupDetails:
         # Ensure the lookup detail is for the correct type
-        if lookup_detail.lkd_lkt_type != lookupType:
+        if lookup_detail.lookupType != lookupType:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Lookup detail type '{lookup_detail.lkd_lkt_type}' does not match URL parameter '{lookupType}'"
+                detail=f"Lookup detail type '{lookup_detail.lookupType}' does not match URL parameter '{lookupType}'"
             )
         
         # Check if lookup detail already exists
         existing_detail = db.query(LookupDetails).filter(
             LookupDetails.lkd_lkt_type == lookupType,
-            LookupDetails.lkd_code == lookup_detail.lkd_code
+            LookupDetails.lkd_code == lookup_detail.lookupDetailCode
         ).first()
         if existing_detail:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Lookup detail '{lookup_detail.lkd_code}' already exists for type '{lookupType}'"
+                detail=f"Lookup detail '{lookup_detail.lookupDetailCode}' already exists for type '{lookupType}'"
             )
         
-        db_lookup_detail = LookupDetails(**lookup_detail.dict())
+        # Map schema fields to database fields
+        lookup_detail_data = lookup_detail.dict()
+        db_data = {
+            'lkd_lkt_type': lookup_detail_data['lookupType'],
+            'lkd_code': lookup_detail_data['lookupDetailCode'],
+            'lkd_description': lookup_detail_data.get('lookupDetailDescription'),
+            'lkd_sub_code': lookup_detail_data.get('lookupDetailSubCode'),
+            'lkd_sort': lookup_detail_data.get('lookupDetailSort'),
+            'created_by': username,  # Set createdBy from username header
+            'last_updated_by': username  # Set lastUpdatedBy to same user for creation
+        }
+        
+        db_lookup_detail = LookupDetails(**db_data)
         db.add(db_lookup_detail)
         created_lookupDetails.append(db_lookup_detail)
     

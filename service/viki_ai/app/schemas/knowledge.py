@@ -28,7 +28,7 @@ class KnowledgeBaseDetails(KnowledgeBaseDetailsBase):
 
     class Config:
         from_attributes = True
-        orm_mode = True
+        
 
 
 class KnowledgeBaseDocumentsBase(BaseModel):
@@ -52,7 +52,7 @@ class KnowledgeBaseDocuments(KnowledgeBaseDocumentsBase):
 
     class Config:
         from_attributes = True
-        orm_mode = True
+        
 
 
 # Response models with relationships

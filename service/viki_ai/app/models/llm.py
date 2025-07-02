@@ -19,5 +19,5 @@ class LLM(Base):
     last_updated_dt = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    config_file = relationship("FileStore", back_populates="llm_configs")
+    # config_file = relationship("FileStore", back_populates="llm_configs")
     agents = relationship("Agent", back_populates="llm_config")
