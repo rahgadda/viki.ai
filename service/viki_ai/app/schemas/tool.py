@@ -82,17 +82,6 @@ class ToolResourceBase(BaseModel):
         populate_by_name = True
 
 
-class ToolResourceCreate(ToolResourceBase):
-    pass
-
-
-class ToolResourceUpdate(BaseModel):
-    resourceDescription: Optional[str] = Field(None, max_length=4000, description="Resource description", alias="tre_resource_description")
-
-    class Config:
-        populate_by_name = True
-
-
 class ToolResource(ToolResourceBase):
     createdBy: Optional[str] = Field(None, max_length=80, description="Created by user", alias="created_by")
     lastUpdatedBy: Optional[str] = Field(None, max_length=80, description="Last updated by user", alias="last_updated_by")
@@ -112,8 +101,4 @@ class ToolWithDetails(Tool):
 
 
 class ToolEnvironmentVariableWithTool(ToolEnvironmentVariable):
-    tool: Optional[Tool] = Field(None, description="Associated tool")
-
-
-class ToolResourceWithTool(ToolResource):
     tool: Optional[Tool] = Field(None, description="Associated tool")
