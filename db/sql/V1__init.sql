@@ -89,7 +89,7 @@ CREATE TABLE tool_environment_variables (
 -- Create index for tool environment variables
 CREATE INDEX idx_tool_env_vars_tool ON tool_environment_variables(tev_tol_id);
 
-CREATE TABLE IF NOT EXISTS tool_resources (
+CREATE TABLE tool_resources (
     tre_tol_id VARCHAR(80) NOT NULL,
     tre_resource_name VARCHAR(240) NOT NULL,
     tre_resource_description VARCHAR(4000),
@@ -109,11 +109,13 @@ CREATE TABLE knowledge_base_details (
     knb_id VARCHAR(80) NOT NULL,
     knb_name VARCHAR(240) NOT NULL,
     knb_description VARCHAR(4000),
+    knb_llc_id VARCHAR(80),
     created_by VARCHAR(80),
     last_updated_by VARCHAR(80),
     creation_dt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_updated_dt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (knb_id)
+    PRIMARY KEY (knb_id),
+    FOREIGN KEY (knb_llc_id) REFERENCES llm(llc_id) ON DELETE SET NULL
 );
 
 -- Table for Knowledge Base Documents
@@ -128,6 +130,9 @@ CREATE TABLE knowledge_base_documents (
     FOREIGN KEY (kbd_knb_id) REFERENCES knowledge_base_details(knb_id) ON DELETE CASCADE,
     FOREIGN KEY (kbd_fls_id) REFERENCES file_store(fls_id) ON DELETE CASCADE
 );
+
+-- Create index for knowledge base LLM reference
+CREATE INDEX idx_knowledge_base_llm ON knowledge_base_details(knb_llc_id);
 
 -- Table creation for Agents
 CREATE TABLE agents (

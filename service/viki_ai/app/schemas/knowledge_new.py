@@ -65,12 +65,7 @@ class KnowledgeBaseDocumentsCreate(KnowledgeBaseDocumentsBase):
 
 
 class KnowledgeBaseDocumentsUpdate(BaseModel):
-    # Currently no updateable fields for documents (they are just relationships)
-    # This is here for future extensibility if document metadata is added
     pass
-
-    class Config:
-        populate_by_name = True
 
 
 class KnowledgeBaseDocuments(KnowledgeBaseDocumentsBase):

@@ -22,3 +22,4 @@ class LLM(Base):
     # Relationships
     # config_file = relationship("FileStore", back_populates="llm_configs")
     agents = relationship("Agent", back_populates="llm_config")
+    knowledge_bases = relationship("KnowledgeBaseDetails", back_populates="llm")
