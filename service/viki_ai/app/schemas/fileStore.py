@@ -41,17 +41,17 @@ class FileStore(FileStoreBase):
     @classmethod
     def from_db_model(cls, db_model):
         """Convert database model to Pydantic schema"""
-        return cls(
-            fileStoreId=db_model.fis_id,
-            fileStoreSourceTypeCd=db_model.fis_source_type_cd,
-            fileStoreSourceId=db_model.fis_source_id,
-            fileStoreFileName=db_model.fis_file_name,
-            fileStoreFileContent=db_model.fis_file_content,
-            createdBy=db_model.created_by,
-            lastUpdatedBy=db_model.last_updated_by,
-            creationDt=db_model.creation_dt,
-            lastUpdatedDt=db_model.last_updated_dt
-        )
+        return cls.model_validate({
+            'fileStoreId': db_model.fis_id,
+            'fileStoreSourceTypeCd': db_model.fis_source_type_cd,
+            'fileStoreSourceId': db_model.fis_source_id,
+            'fileStoreFileName': db_model.fis_file_name,
+            'fileStoreFileContent': db_model.fis_file_content,
+            'createdBy': db_model.created_by,
+            'lastUpdatedBy': db_model.last_updated_by,
+            'creationDt': db_model.creation_dt,
+            'lastUpdatedDt': db_model.last_updated_dt
+        })
 
 
 # For API responses, we might want to exclude binary content or provide metadata only
@@ -72,13 +72,13 @@ class FileStoreMetadata(BaseModel):
     @classmethod
     def from_db_model(cls, db_model):
         """Convert database model to Pydantic schema"""
-        return cls(
-            fileStoreId=db_model.fis_id,
-            fileStoreSourceTypeCd=db_model.fis_source_type_cd,
-            fileStoreSourceId=db_model.fis_source_id,
-            fileStoreFileName=db_model.fis_file_name,
-            createdBy=db_model.created_by,
-            lastUpdatedBy=db_model.last_updated_by,
-            creationDt=db_model.creation_dt,
-            lastUpdatedDt=db_model.last_updated_dt
-        )
+        return cls.model_validate({
+            'fileStoreId': db_model.fis_id,
+            'fileStoreSourceTypeCd': db_model.fis_source_type_cd,
+            'fileStoreSourceId': db_model.fis_source_id,
+            'fileStoreFileName': db_model.fis_file_name,
+            'createdBy': db_model.created_by,
+            'lastUpdatedBy': db_model.last_updated_by,
+            'creationDt': db_model.creation_dt,
+            'lastUpdatedDt': db_model.last_updated_dt
+        })
