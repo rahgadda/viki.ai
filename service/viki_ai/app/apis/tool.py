@@ -1,7 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session
-from typing import List, Optional
+import asyncio
+from typing import List, Optional, Dict, Tuple
 import uuid
+import os
+from mcp.client.stdio import stdio_client
+from mcp import ClientSession, StdioServerParameters
+from langchain_mcp_adapters.tools import load_mcp_tools
+import logging
 from app.utils.database import get_db
 from app.utils.config import settings
 from app.models.tool import Tool, ToolEnvironmentVariable, ToolResource
@@ -12,9 +18,15 @@ from app.schemas.tool import (
     ToolWithDetails,
     ToolEnvironmentVariable as ToolEnvironmentVariableSchema,
     ToolEnvironmentVariableCreate,
+    ToolEnvironmentVariableBulkItem,
     ToolEnvironmentVariableUpdate,
     ToolResource as ToolResourceSchema
 )
+
+# Connection management constants
+MAX_RETRIES = 3
+BASE_DELAY = 0.5
+CONNECTION_SEMAPHORE = asyncio.Semaphore(2)
 
 # Create router with version prefix
 router = APIRouter(prefix=f"/api/v{settings.VERSION}")
@@ -28,7 +40,7 @@ def get_username(x_username: str = Header(None, alias="x-username")) -> str:
 
 
 # Tool endpoints
-@router.get("/tool", response_model=List[ToolSchema])
+@router.get("/tools", response_model=List[ToolSchema])
 def get_tools(
     skip: int = 0,
     limit: int = 100,
@@ -45,52 +57,52 @@ def get_tools(
         query = query.filter(Tool.tol_mcp_command.ilike(f"%{toolMcpCommand}%"))
     
     tools = query.offset(skip).limit(limit).all()
-    return tools
+    return [ToolSchema.from_db_model(tool) for tool in tools]
 
 
-@router.get("/tool/{toolId}", response_model=ToolWithDetails)
+@router.get("/tools/{toolId}", response_model=ToolSchema)
 def get_tool(
     toolId: str,
     db: Session = Depends(get_db)
 ):
-    """Get a specific tool configuration by ID with environment variables and resources"""
+    """Get a specific tool configuration by ID"""
     db_tool = db.query(Tool).filter(Tool.tol_id == toolId).first()
     if db_tool is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Tool configuration '{toolId}' not found"
         )
-    return db_tool
+    return ToolSchema.from_db_model(db_tool)
 
 
-@router.post("/tool", response_model=ToolSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/tools", response_model=ToolSchema, status_code=status.HTTP_201_CREATED)
 def create_tool(
     tool_create: ToolCreate,
     db: Session = Depends(get_db),
     username: str = Depends(get_username)
 ):
     """Create a new tool configuration"""
-    # Check if tool ID already exists
-    existing_tool = db.query(Tool).filter(Tool.tol_id == tool_create.toolId).first()
-    if existing_tool:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Tool with ID '{tool_create.toolId}' already exists"
-        )
-
-    # Create tool record using schema data with aliases
-    create_data = tool_create.dict(by_alias=True)
-    create_data['created_by'] = username
-    create_data['last_updated_by'] = username
+    # Generate a new UUID for the tool
+    tool_id = str(uuid.uuid4())
     
-    db_tool = Tool(**create_data)
+    # Create tool record - manually map camelCase schema fields to snake_case DB columns
+    db_tool = Tool(
+        tol_id=tool_id,
+        tol_name=tool_create.toolName,
+        tol_description=tool_create.toolDescription,
+        tol_mcp_command=tool_create.toolMcpCommand,
+        tol_mcp_function_count=0,  # Auto-populated by populate resources endpoint
+        tol_proxy_required=tool_create.toolProxyRequired,
+        created_by=username,
+        last_updated_by=username
+    )
     db.add(db_tool)
     db.commit()
     db.refresh(db_tool)
-    return db_tool
+    return ToolSchema.from_db_model(db_tool)
 
 
-@router.put("/tool/{toolId}", response_model=ToolSchema)
+@router.put("/tools/{toolId}", response_model=ToolSchema)
 def update_tool(
     toolId: str,
     tool_update: ToolUpdate,
@@ -106,18 +118,23 @@ def update_tool(
         )
     
     # Update only provided fields and set last_updated_by
-    update_data = tool_update.dict(exclude_unset=True, by_alias=True)
-    update_data['last_updated_by'] = username
+    if tool_update.toolName is not None:
+        setattr(db_tool, 'tol_name', tool_update.toolName)
+    if tool_update.toolDescription is not None:
+        setattr(db_tool, 'tol_description', tool_update.toolDescription)
+    if tool_update.toolMcpCommand is not None:
+        setattr(db_tool, 'tol_mcp_command', tool_update.toolMcpCommand)
+    if tool_update.toolProxyRequired is not None:
+        setattr(db_tool, 'tol_proxy_required', tool_update.toolProxyRequired)
     
-    for field, value in update_data.items():
-        setattr(db_tool, field, value)
+    setattr(db_tool, 'last_updated_by', username)
     
     db.commit()
     db.refresh(db_tool)
-    return db_tool
+    return ToolSchema.from_db_model(db_tool)
 
 
-@router.delete("/tool/{toolId}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/tools/{toolId}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_tool(
     toolId: str,
     db: Session = Depends(get_db)
@@ -135,7 +152,7 @@ def delete_tool(
 
 
 # Tool Environment Variable endpoints
-@router.get("/tool/{toolId}/environmentVariables", response_model=List[ToolEnvironmentVariableSchema])
+@router.get("/tools/{toolId}/environmentVariables", response_model=List[ToolEnvironmentVariableSchema])
 def get_tool_environment_variables(
     toolId: str,
     skip: int = 0,
@@ -154,10 +171,10 @@ def get_tool_environment_variables(
     env_vars = db.query(ToolEnvironmentVariable).filter(
         ToolEnvironmentVariable.tev_tol_id == toolId
     ).offset(skip).limit(limit).all()
-    return env_vars
+    return [ToolEnvironmentVariableSchema.from_db_model(env_var) for env_var in env_vars]
 
 
-@router.get("/tool/{toolId}/environmentVariables/{envVarKey}", response_model=ToolEnvironmentVariableSchema)
+@router.get("/tools/{toolId}/environmentVariables/{envVarKey}", response_model=ToolEnvironmentVariableSchema)
 def get_tool_environment_variable(
     toolId: str,
     envVarKey: str,
@@ -173,17 +190,17 @@ def get_tool_environment_variable(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Environment variable '{envVarKey}' not found for tool '{toolId}'"
         )
-    return db_env_var
+    return ToolEnvironmentVariableSchema.from_db_model(db_env_var)
 
 
-@router.post("/tool/{toolId}/environmentVariables", response_model=ToolEnvironmentVariableSchema, status_code=status.HTTP_201_CREATED)
-def create_tool_environment_variable(
+@router.post("/tools/{toolId}/environmentVariables", response_model=List[ToolEnvironmentVariableSchema], status_code=status.HTTP_201_CREATED)
+def create_tool_environment_variables(
     toolId: str,
-    env_var_create: ToolEnvironmentVariableCreate,
+    env_vars_create: List[ToolEnvironmentVariableBulkItem],
     db: Session = Depends(get_db),
     username: str = Depends(get_username)
 ):
-    """Create a new environment variable for a tool"""
+    """Create multiple environment variables for a tool"""
     # Check if tool exists
     db_tool = db.query(Tool).filter(Tool.tol_id == toolId).first()
     if db_tool is None:
@@ -192,31 +209,41 @@ def create_tool_environment_variable(
             detail=f"Tool configuration '{toolId}' not found"
         )
     
-    # Check if environment variable already exists
-    existing_env_var = db.query(ToolEnvironmentVariable).filter(
-        ToolEnvironmentVariable.tev_tol_id == toolId,
-        ToolEnvironmentVariable.tev_key == env_var_create.envVarKey
-    ).first()
-    if existing_env_var:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Environment variable '{env_var_create.envVarKey}' already exists for tool '{toolId}'"
-        )
-
-    # Create environment variable record
-    create_data = env_var_create.dict(by_alias=True)
-    create_data['tev_tol_id'] = toolId  # Ensure toolId is set correctly
-    create_data['created_by'] = username
-    create_data['last_updated_by'] = username
+    created_env_vars = []
     
-    db_env_var = ToolEnvironmentVariable(**create_data)
-    db.add(db_env_var)
+    for env_var_item in env_vars_create:
+        # Check if environment variable already exists
+        existing_env_var = db.query(ToolEnvironmentVariable).filter(
+            ToolEnvironmentVariable.tev_tol_id == toolId,
+            ToolEnvironmentVariable.tev_key == env_var_item.envVarKey
+        ).first()
+        if existing_env_var:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Environment variable '{env_var_item.envVarKey}' already exists for tool '{toolId}'"
+            )
+
+        # Create environment variable record
+        db_env_var = ToolEnvironmentVariable(
+            tev_tol_id=toolId,
+            tev_key=env_var_item.envVarKey,
+            tev_value=env_var_item.envVarValue,
+            created_by=username,
+            last_updated_by=username
+        )
+        db.add(db_env_var)
+        created_env_vars.append(db_env_var)
+    
     db.commit()
-    db.refresh(db_env_var)
-    return db_env_var
+    
+    # Refresh all created environment variables
+    for env_var in created_env_vars:
+        db.refresh(env_var)
+    
+    return [ToolEnvironmentVariableSchema.from_db_model(env_var) for env_var in created_env_vars]
 
 
-@router.put("/tool/{toolId}/environmentVariables/{envVarKey}", response_model=ToolEnvironmentVariableSchema)
+@router.put("/tools/{toolId}/environmentVariables/{envVarKey}", response_model=ToolEnvironmentVariableSchema)
 def update_tool_environment_variable(
     toolId: str,
     envVarKey: str,
@@ -244,10 +271,10 @@ def update_tool_environment_variable(
     
     db.commit()
     db.refresh(db_env_var)
-    return db_env_var
+    return ToolEnvironmentVariableSchema.from_db_model(db_env_var)
 
 
-@router.delete("/tool/{toolId}/environmentVariables/{envVarKey}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/tools/{toolId}/environmentVariables/{envVarKey}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_tool_environment_variable(
     toolId: str,
     envVarKey: str,
@@ -269,7 +296,7 @@ def delete_tool_environment_variable(
 
 
 # Tool Resource endpoints
-@router.get("/tool/{toolId}/resources", response_model=List[ToolResourceSchema])
+@router.get("/tools/{toolId}/resources", response_model=List[ToolResourceSchema])
 def get_tool_resources(
     toolId: str,
     skip: int = 0,
@@ -288,10 +315,10 @@ def get_tool_resources(
     resources = db.query(ToolResource).filter(
         ToolResource.tre_tol_id == toolId
     ).offset(skip).limit(limit).all()
-    return resources
+    return [ToolResourceSchema.from_db_model(resource) for resource in resources]
 
 
-@router.get("/tool/{toolId}/resources/{resourceName}", response_model=ToolResourceSchema)
+@router.get("/tools/{toolId}/resources/{resourceName}", response_model=ToolResourceSchema)
 def get_tool_resource(
     toolId: str,
     resourceName: str,
@@ -307,4 +334,195 @@ def get_tool_resource(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Resource '{resourceName}' not found for tool '{toolId}'"
         )
-    return db_resource
+    return ToolResourceSchema.from_db_model(db_resource)
+
+
+async def _create_test_connection_with_retry(server_params: StdioServerParameters, max_retries: int = MAX_RETRIES):
+    """Create MCP test connection with retry logic."""
+    async with CONNECTION_SEMAPHORE:  # Limit concurrent connections
+        for attempt in range(max_retries):
+            try:
+                # Add delay before retry attempts
+                if attempt > 0:
+                    delay = BASE_DELAY * (2 ** (attempt - 1))
+                    logging.info(f"Retrying MCP test connection in {delay:.2f}s (attempt {attempt + 1}/{max_retries})")
+                    await asyncio.sleep(delay)
+                
+                # Return the connection context manager
+                return stdio_client(server_params)
+                
+            except Exception as e:
+                logging.warning(f"MCP test connection attempt {attempt + 1} failed: {str(e)}")
+                if attempt == max_retries - 1:
+                    # Last attempt failed
+                    logging.error(f"All {max_retries} test connection attempts failed")
+                    raise
+                
+                # For BlockingIOError specifically, add additional delay
+                if "Resource temporarily unavailable" in str(e) or "BlockingIOError" in str(e):
+                    additional_delay = 1.0 * (attempt + 1)
+                    logging.info(f"Resource contention detected, adding {additional_delay:.2f}s additional delay")
+                    await asyncio.sleep(additional_delay)
+
+
+async def test_mcp_configuration(
+    mcp_command: str, 
+    environment_variables: Dict[str, str]
+) -> Tuple[bool, int, Optional[str], Optional[List[Dict[str, str]]]]:
+    """
+    Test MCP configuration and return function count and function details.
+    
+    Args:
+        mcp_command: The MCP command to test
+        environment_variables: Environment variables for the MCP server
+        
+    Returns:
+        Tuple of (success: bool, function_count: int, error_message: Optional[str], functions: Optional[List[Dict[str, str]]])
+    """
+    try:
+        # Parse MCP command to get command and args
+        command_parts = mcp_command.strip().split()
+        if not command_parts:
+            return False, 0, "Empty MCP command", None
+        
+        command = command_parts[0]
+        args = command_parts[1:] if len(command_parts) > 1 else []
+        
+        # Prepare environment
+        env = os.environ.copy()
+        env.update(environment_variables)
+        
+        # Create server parameters
+        server_params = StdioServerParameters(
+            command=command,
+            args=args,
+            env=env
+        )
+        
+        # Test connection and count tools
+        connection_manager = await _create_test_connection_with_retry(server_params)
+        
+        async with connection_manager as (read, write):  # type: ignore
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                logging.info("MCP test connection initialized successfully")
+                
+                # Load MCP tools and count them
+                tools = await load_mcp_tools(session)
+                tool_count = len(tools)
+                
+                # Extract function details
+                functions = []
+                for tool in tools:
+                    functions.append({
+                        "name": tool.name,
+                        "description": tool.description if hasattr(tool, 'description') else "",
+                        "type": "function"
+                    })
+                
+                logging.info(f"Successfully loaded {tool_count} MCP tools in test")
+                return True, tool_count, None, functions
+                
+    except Exception as e:
+        error_message = f"Failed to test MCP configuration: {str(e)}"
+        logging.error(error_message)
+        return False, 0, error_message, None
+
+
+@router.post("/tools/{toolId}/resources", response_model=List[ToolResourceSchema])
+def populate_tool_resources(
+    toolId: str,
+    db: Session = Depends(get_db),
+    username: str = Depends(get_username)
+):
+    """
+    Populate tool resources by connecting to MCP server and discovering available resources
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(f"Starting resource population for tool: {toolId}")
+    
+    # Check if tool exists
+    db_tool = db.query(Tool).filter(Tool.tol_id == toolId).first()
+    if db_tool is None:
+        logger.error(f"Tool not found: {toolId}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Tool configuration '{toolId}' not found"
+        )
+    
+    logger.info(f"Found tool: {db_tool.tol_name}, command: {db_tool.tol_mcp_command}")
+    
+    # Get environment variables for the tool
+    env_vars = {}
+    tool_env_vars = db.query(ToolEnvironmentVariable).filter(
+        ToolEnvironmentVariable.tev_tol_id == toolId
+    ).all()
+    
+    for env_var in tool_env_vars:
+        env_vars[env_var.tev_key] = env_var.tev_value
+    
+    logger.info(f"Found {len(env_vars)} environment variables")
+    
+    # Test MCP configuration and get resources
+    try:
+        logger.info(f"Testing MCP configuration with command: {db_tool.tol_mcp_command}")
+        success, function_count, error_message, functions = asyncio.run(test_mcp_configuration(
+            str(db_tool.tol_mcp_command), 
+            env_vars
+        ))
+
+        if success:
+            logger.info(f"Successfully retrieved {function_count} functions from MCP server")
+            
+            # Clear existing resources and add new ones
+            logger.info(f"Clearing existing resources for tool {toolId}")
+            db.query(ToolResource).filter(ToolResource.tre_tol_id == toolId).delete()
+            
+            created_resources = []
+            
+            # Save or update tool resources
+            if functions:
+                for func in functions:
+                    db_resource = ToolResource(
+                        tre_tol_id=toolId,
+                        tre_resource_name=func.get("name", ""),
+                        tre_resource_description=func.get("description", ""),
+                        created_by=username,
+                        last_updated_by=username
+                    )
+                    db.add(db_resource)
+                    created_resources.append(db_resource)
+                
+                logger.info(f"Added {len(functions)} resources for tool {toolId}")
+            
+            # Update tool function count
+            logger.info(f"Updating tool function count to {function_count}")
+            setattr(db_tool, 'tol_mcp_function_count', function_count)
+            setattr(db_tool, 'last_updated_by', username)
+            
+            db.commit()
+            logger.info(f"Successfully committed {len(created_resources)} resources to database")
+            
+            # Refresh all created resources
+            for resource in created_resources:
+                db.refresh(resource)
+            
+            logger.info(f"Resource population completed for tool {toolId}")
+            return [ToolResourceSchema.from_db_model(resource) for resource in created_resources]
+            
+        else:
+            logger.warning(f"MCP configuration test failed for tool {toolId}: {error_message}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"MCP configuration test failed: {error_message or 'Unknown error'}"
+            )
+            
+    except HTTPException:
+        logger.error(f"HTTP exception when connecting to MCP server for tool {toolId}")
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error connecting to MCP server for tool {toolId}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to test MCP configuration: {str(e)}"
+        )

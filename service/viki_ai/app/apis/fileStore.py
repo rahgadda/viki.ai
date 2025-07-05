@@ -24,27 +24,27 @@ def get_username(x_username: str = Header(None, alias="x-username")) -> str:
 
 
 # FileStore endpoints
-@router.get("/fileStore", response_model=List[FileStoreMetadata])
+@router.get("/fileStores", response_model=List[FileStoreMetadata])
 def get_file_stores(
     skip: int = 0,
     limit: int = 100,
-    source_type: Optional[str] = None,
-    source_id: Optional[str] = None,
+    sourceType: Optional[str] = None,
+    sourceId: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """Get all file stores with pagination and optional filtering"""
     query = db.query(FileStore)
     
-    if source_type:
-        query = query.filter(FileStore.fls_source_type_cd == source_type)
-    if source_id:
-        query = query.filter(FileStore.fls_source_id == source_id)
+    if sourceType:
+        query = query.filter(FileStore.fls_source_type_cd == sourceType)
+    if sourceId:
+        query = query.filter(FileStore.fls_source_id == sourceId)
     
     file_stores = query.offset(skip).limit(limit).all()
-    return file_stores
+    return [FileStoreMetadata.from_db_model(fs) for fs in file_stores]
 
 
-@router.get("/fileStore/{fileStoreId}", response_model=FileStoreSchema)
+@router.get("/fileStores/{fileStoreId}", response_model=FileStoreSchema)
 def get_file_store(
     fileStoreId: str,
     db: Session = Depends(get_db)
@@ -56,10 +56,10 @@ def get_file_store(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"File store '{fileStoreId}' not found"
         )
-    return db_file_store
+    return FileStoreSchema.from_db_model(db_file_store)
 
 
-@router.get("/fileStore/{fileStoreId}/metadata", response_model=FileStoreMetadata)
+@router.get("/fileStores/{fileStoreId}/metadata", response_model=FileStoreMetadata)
 def get_file_store_metadata(
     fileStoreId: str,
     db: Session = Depends(get_db)
@@ -71,12 +71,12 @@ def get_file_store_metadata(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"File store '{fileStoreId}' not found"
         )
-    return db_file_store
+    return FileStoreMetadata.from_db_model(db_file_store)
 
-@router.post("/fileStore/upload", response_model=FileStoreMetadata, status_code=status.HTTP_201_CREATED)
+@router.post("/fileStores/upload", response_model=FileStoreMetadata, status_code=status.HTTP_201_CREATED)
 def upload_file(
-    sourceTypeLookupCode: str,
-    sourceId: str,
+    fileStoreSourceTypeCd: str,
+    fileStoreSourceId: str,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     username: str = Depends(get_username)
@@ -91,28 +91,31 @@ def upload_file(
     # Handle case where filename might be None
     filename = file.filename or "uploaded_file"
     
-    # Create file store using schema with database field names (aliases)
+    # Create file store using schema with camelCase field names (Pydantic will handle DB mapping)
     file_store_create = FileStoreCreate(
-        fls_source_type_cd=sourceTypeLookupCode,
-        fls_source_id=sourceId,
-        fls_file_name=filename,
-        fls_file_content=file_content
+        fileStoreSourceTypeCd=fileStoreSourceTypeCd,
+        fileStoreSourceId=fileStoreSourceId,
+        fileStoreFileName=filename,
+        fileStoreFileContent=file_content
     )
     
-    # Convert to database format using aliases
-    file_store_data = file_store_create.dict(by_alias=True)
-    file_store_data['fls_id'] = fileStoreId
-    file_store_data['created_by'] = username
-    file_store_data['last_updated_by'] = username
-    
-    db_file_store = FileStore(**file_store_data)
+    # Create database record - Pydantic will handle the field mapping via validation_alias
+    db_file_store = FileStore(
+        fls_id=fileStoreId,
+        fls_source_type_cd=file_store_create.fileStoreSourceTypeCd,
+        fls_source_id=file_store_create.fileStoreSourceId,
+        fls_file_name=file_store_create.fileStoreFileName,
+        fls_file_content=file_store_create.fileStoreFileContent,
+        created_by=username,
+        last_updated_by=username
+    )
     db.add(db_file_store)
     db.commit()
     db.refresh(db_file_store)
-    return db_file_store
+    return FileStoreMetadata.from_db_model(db_file_store)
 
 
-@router.put("/fileStore/{fileStoreId}", response_model=FileStoreMetadata)
+@router.put("/fileStores/{fileStoreId}", response_model=FileStoreMetadata)
 def update_file_store(
     fileStoreId: str,
     file_store_update: FileStoreUpdate,
@@ -128,19 +131,23 @@ def update_file_store(
         )
     
     # Update only provided fields and set last_updated_by
-    update_data = file_store_update.dict(exclude_unset=True, by_alias=True)
-    update_data['last_updated_by'] = username
+    if file_store_update.fileStoreSourceTypeCd is not None:
+        setattr(db_file_store, 'fls_source_type_cd', file_store_update.fileStoreSourceTypeCd)
+    if file_store_update.fileStoreSourceId is not None:
+        setattr(db_file_store, 'fls_source_id', file_store_update.fileStoreSourceId)
+    if file_store_update.fileStoreFileName is not None:
+        setattr(db_file_store, 'fls_file_name', file_store_update.fileStoreFileName)
+    if file_store_update.fileStoreFileContent is not None:
+        setattr(db_file_store, 'fls_file_content', file_store_update.fileStoreFileContent)
     
-    for field, value in update_data.items():
-        if hasattr(db_file_store, field):
-            setattr(db_file_store, field, value)
+    setattr(db_file_store, 'last_updated_by', username)
     
     db.commit()
     db.refresh(db_file_store)
-    return db_file_store
+    return FileStoreMetadata.from_db_model(db_file_store)
 
 
-@router.delete("/fileStore/{fileStoreId}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/fileStores/{fileStoreId}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_file_store(
     fileStoreId: str,
     db: Session = Depends(get_db)
@@ -157,7 +164,7 @@ def delete_file_store(
     db.commit()
 
 
-@router.get("/fileStore/{fileStoreId}/download")
+@router.get("/fileStores/{fileStoreId}/download")
 def download_file(
     fileStoreId: str,
     db: Session = Depends(get_db)
@@ -177,6 +184,6 @@ def download_file(
         content=db_file_store.fls_file_content,
         media_type="application/octet-stream",
         headers={
-            "Content-Disposition": f"attachment; filename=file"
+            "Content-Disposition": f"attachment; filename={db_file_store.fls_file_name}"
         }
     )

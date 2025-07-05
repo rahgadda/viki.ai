@@ -34,22 +34,22 @@ def get_lookupTypes(
 ):
     """Get all lookup types with pagination"""
     lookupTypes = db.query(LookupTypes).offset(skip).limit(limit).all()
-    return lookupTypes
+    return [LookupTypesSchema.from_db_model(lt) for lt in lookupTypes]
 
 
-@router.get("/lookupTypes/{lookupType}", response_model=LookupTypesWithDetails)
+@router.get("/lookupTypes/{lookupType}", response_model=LookupTypesSchema)
 def get_lookupType(
     lookupType: str,
     db: Session = Depends(get_db)
 ):
-    """Get a specific lookup type with its lookupDetails"""
+    """Get a specific lookup type"""
     db_lookupType = db.query(LookupTypes).filter(LookupTypes.lkt_type == lookupType).first()
     if db_lookupType is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Lookup type '{lookupType}' not found"
         )
-    return db_lookupType
+    return LookupTypesSchema.from_db_model(db_lookupType)
 
 
 @router.post("/lookupTypes", response_model=LookupTypesSchema, status_code=status.HTTP_201_CREATED)
@@ -67,16 +67,17 @@ def create_lookupType(
             detail=f"Lookup type '{lookupType.lookupType}' already exists"
         )
     
-    # Create lookup type using schema data with aliases
-    lookupType_data = lookupType.dict(by_alias=True)
-    lookupType_data['created_by'] = username
-    lookupType_data['last_updated_by'] = username  # Set lastUpdatedBy to same user for creation
-    
-    db_lookupType = LookupTypes(**lookupType_data)
+    # Create lookup type - Pydantic will handle the field mapping via validation_alias
+    db_lookupType = LookupTypes(
+        lkt_type=lookupType.lookupType,
+        lkt_description=lookupType.lookupDescription,
+        created_by=username,
+        last_updated_by=username
+    )
     db.add(db_lookupType)
     db.commit()
     db.refresh(db_lookupType)
-    return db_lookupType
+    return LookupTypesSchema.from_db_model(db_lookupType)
 
 
 @router.put("/lookupTypes/{lookupType}", response_model=LookupTypesSchema)
@@ -95,16 +96,14 @@ def update_lookupType(
         )
     
     # Update only provided fields and set last_updated_by
-    update_data = lookupType_update.dict(exclude_unset=True, by_alias=True)
-    update_data['last_updated_by'] = username
+    if lookupType_update.lookupDescription is not None:
+        setattr(db_lookupType, 'lkt_description', lookupType_update.lookupDescription)
     
-    for field, value in update_data.items():
-        if hasattr(db_lookupType, field):
-            setattr(db_lookupType, field, value)
+    setattr(db_lookupType, 'last_updated_by', username)
     
     db.commit()
     db.refresh(db_lookupType)
-    return db_lookupType
+    return LookupTypesSchema.from_db_model(db_lookupType)
 
 
 @router.delete("/lookupTypes/{lookupType}", status_code=status.HTTP_204_NO_CONTENT)
@@ -144,10 +143,10 @@ def get_lookup_lookupDetails(
     lookup_lookupDetails = db.query(LookupDetails).filter(
         LookupDetails.lkd_lkt_type == lookupType
     ).offset(skip).limit(limit).all()
-    return lookup_lookupDetails
+    return [LookupDetailsSchema.from_db_model(ld) for ld in lookup_lookupDetails]
 
 
-@router.get("/lookupTypes/{lookupType}/lookupDetails/{code}", response_model=LookupDetailsWithType)
+@router.get("/lookupTypes/{lookupType}/lookupDetails/{code}", response_model=LookupDetailsSchema)
 def get_lookup_detail(
     lookupType: str,
     code: str,
@@ -163,7 +162,7 @@ def get_lookup_detail(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Lookup detail '{code}' not found for type '{lookupType}'"
         )
-    return db_lookup_detail
+    return LookupDetailsSchema.from_db_model(db_lookup_detail)
 
 
 @router.post("/lookupTypes/{lookupType}/lookupDetails", response_model=LookupDetailsSchema, status_code=status.HTTP_201_CREATED)
@@ -200,16 +199,20 @@ def create_lookup_detail(
             detail=f"Lookup detail '{lookup_detail.lookupDetailCode}' already exists for type '{lookupType}'"
         )
     
-    # Create lookup detail using schema data with aliases
-    lookup_detail_data = lookup_detail.dict(by_alias=True)
-    lookup_detail_data['created_by'] = username
-    lookup_detail_data['last_updated_by'] = username  # Set lastUpdatedBy to same user for creation
-    
-    db_lookup_detail = LookupDetails(**lookup_detail_data)
+    # Create lookup detail - Pydantic will handle the field mapping via validation_alias
+    db_lookup_detail = LookupDetails(
+        lkd_lkt_type=lookup_detail.lookupType,
+        lkd_code=lookup_detail.lookupDetailCode,
+        lkd_description=lookup_detail.lookupDetailDescription,
+        lkd_sub_code=lookup_detail.lookupDetailSubCode,
+        lkd_sort=lookup_detail.lookupDetailSort,
+        created_by=username,
+        last_updated_by=username
+    )
     db.add(db_lookup_detail)
     db.commit()
     db.refresh(db_lookup_detail)
-    return db_lookup_detail
+    return LookupDetailsSchema.from_db_model(db_lookup_detail)
 
 
 @router.put("/lookupTypes/{lookupType}/lookupDetails/{code}", response_model=LookupDetailsSchema)
@@ -232,16 +235,18 @@ def update_lookup_detail(
         )
     
     # Update only provided fields and set last_updated_by
-    update_data = lookup_detail_update.dict(exclude_unset=True, by_alias=True)
-    update_data['last_updated_by'] = username
+    if lookup_detail_update.lookupDetailDescription is not None:
+        setattr(db_lookup_detail, 'lkd_description', lookup_detail_update.lookupDetailDescription)
+    if lookup_detail_update.lookupDetailSubCode is not None:
+        setattr(db_lookup_detail, 'lkd_sub_code', lookup_detail_update.lookupDetailSubCode)
+    if lookup_detail_update.lookupDetailSort is not None:
+        setattr(db_lookup_detail, 'lkd_sort', lookup_detail_update.lookupDetailSort)
     
-    for field, value in update_data.items():
-        if hasattr(db_lookup_detail, field):
-            setattr(db_lookup_detail, field, value)
+    setattr(db_lookup_detail, 'last_updated_by', username)
     
     db.commit()
     db.refresh(db_lookup_detail)
-    return db_lookup_detail
+    return LookupDetailsSchema.from_db_model(db_lookup_detail)
 
 
 @router.delete("/lookupTypes/{lookupType}/lookupDetails/{code}", status_code=status.HTTP_204_NO_CONTENT)
@@ -280,7 +285,7 @@ def get_all_lookup_lookupDetails(
         query = query.filter(LookupDetails.lkd_lkt_type == lookupType)
     
     lookup_lookupDetails = query.offset(skip).limit(limit).all()
-    return lookup_lookupDetails
+    return [LookupDetailsSchema.from_db_model(ld) for ld in lookup_lookupDetails]
 
 
 @router.post("/lookupTypes/{lookupType}/lookupDetails/bulk", response_model=List[LookupDetailsSchema])
@@ -319,12 +324,17 @@ def create_lookup_lookupDetails_bulk(
                 detail=f"Lookup detail '{lookup_detail.lookupDetailCode}' already exists for type '{lookupType}'"
             )
         
-        # Create lookup detail using schema data with aliases
-        lookup_detail_data = lookup_detail.dict(by_alias=True)
-        lookup_detail_data['created_by'] = username  # Set createdBy from username header
-        lookup_detail_data['last_updated_by'] = username  # Set lastUpdatedBy to same user for creation
+        # Create lookup detail - Pydantic will handle the field mapping via validation_alias
+        db_lookup_detail = LookupDetails(
+            lkd_lkt_type=lookup_detail.lookupType,
+            lkd_code=lookup_detail.lookupDetailCode,
+            lkd_description=lookup_detail.lookupDetailDescription,
+            lkd_sub_code=lookup_detail.lookupDetailSubCode,
+            lkd_sort=lookup_detail.lookupDetailSort,
+            created_by=username,
+            last_updated_by=username
+        )
         
-        db_lookup_detail = LookupDetails(**lookup_detail_data)
         db.add(db_lookup_detail)
         created_lookupDetails.append(db_lookup_detail)
     
@@ -332,4 +342,4 @@ def create_lookup_lookupDetails_bulk(
     for detail in created_lookupDetails:
         db.refresh(detail)
     
-    return created_lookupDetails
+    return [LookupDetailsSchema.from_db_model(detail) for detail in created_lookupDetails]

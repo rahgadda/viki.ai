@@ -17,15 +17,17 @@ else
     exit 1
 fi
 
-# Check if any Python process is running on port 8080 and kill it
-pid=$(lsof -ti:8080 -sTCP:LISTEN -a -c python)
+# Check if any Python process is running on port 8000 and kill it
+pid=$(lsof -ti:8000 -sTCP:LISTEN -a -c python)
 if [[ -n "$pid" ]]; then
-    echo "Killing Python process on port 8080 (PID: $pid)"
+    echo "Killing Python process on port 8000 (PID: $pid)"
     kill -9 $pid
 fi
 
 # Starting the viki_ai service
 echo "Running viki_ai service"
 source viki_ai/.venv/bin/activate
+cd viki_ai
+uv pip install -e .
+cd ..
 uv run -m viki_ai
-echo "Stopped viki_ai service."

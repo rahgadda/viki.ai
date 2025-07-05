@@ -40,7 +40,7 @@ def get_llms(
         query = query.filter(LLM.llc_model_cd == modelCd)
     
     llms = query.offset(skip).limit(limit).all()
-    return llms
+    return [LLMSchema.from_db_model(llm) for llm in llms]
 
 
 @router.get("/llm/{llmId}", response_model=LLMSchema)
@@ -55,7 +55,7 @@ def get_llm(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"LLM configuration '{llmId}' not found"
         )
-    return db_llm
+    return LLMSchema.from_db_model(db_llm)
 
 
 @router.post("/llm", response_model=LLMSchema, status_code=status.HTTP_201_CREATED)
@@ -68,17 +68,22 @@ def create_llm(
     # Generate UUID for the LLM configuration
     llmId = str(uuid.uuid4())
 
-    # Create LLM record using schema data with aliases
-    create_data = llm_create.dict(by_alias=True)
-    create_data['llc_id'] = llmId
-    create_data['created_by'] = username
-    create_data['last_updated_by'] = username
-    
-    db_llm = LLM(**create_data)
+    # Create LLM record - manually map camelCase schema fields to snake_case DB columns
+    db_llm = LLM(
+        llc_id=llmId,
+        llc_provider_type_cd=llm_create.llmProviderTypeCd,
+        llc_model_cd=llm_create.llmModelCd,
+        llc_endpoint_url=llm_create.llmEndpointUrl,
+        llc_api_key=llm_create.llmApiKey,
+        llc_fls_id=llm_create.llmFileStoreId,
+        llc_proxy_required=llm_create.llmProxyRequired,
+        created_by=username,
+        last_updated_by=username
+    )
     db.add(db_llm)
     db.commit()
     db.refresh(db_llm)
-    return db_llm
+    return LLMSchema.from_db_model(db_llm)
 
 
 @router.put("/llm/{llmId}", response_model=LLMSchema)
@@ -97,15 +102,24 @@ def update_llm(
         )
     
     # Update only provided fields and set last_updated_by
-    update_data = llm_update.dict(exclude_unset=True, by_alias=True)
-    update_data['last_updated_by'] = username
+    if llm_update.llmProviderTypeCd is not None:
+        setattr(db_llm, 'llc_provider_type_cd', llm_update.llmProviderTypeCd)
+    if llm_update.llmModelCd is not None:
+        setattr(db_llm, 'llc_model_cd', llm_update.llmModelCd)
+    if llm_update.llmEndpointUrl is not None:
+        setattr(db_llm, 'llc_endpoint_url', llm_update.llmEndpointUrl)
+    if llm_update.llmApiKey is not None:
+        setattr(db_llm, 'llc_api_key', llm_update.llmApiKey)
+    if llm_update.llmFileStoreId is not None:
+        setattr(db_llm, 'llc_fls_id', llm_update.llmFileStoreId)
+    if llm_update.llmProxyRequired is not None:
+        setattr(db_llm, 'llc_proxy_required', llm_update.llmProxyRequired)
     
-    for field, value in update_data.items():
-        setattr(db_llm, field, value)
+    setattr(db_llm, 'last_updated_by', username)
     
     db.commit()
     db.refresh(db_llm)
-    return db_llm
+    return LLMSchema.from_db_model(db_llm)
 
 
 @router.delete("/llm/{llmId}", status_code=status.HTTP_204_NO_CONTENT)
@@ -136,7 +150,7 @@ def get_llms_by_provider(
     llms = db.query(LLM).filter(
         LLM.llc_provider_type_cd == providerTypeCd
     ).offset(skip).limit(limit).all()
-    return llms
+    return [LLMSchema.from_db_model(llm) for llm in llms]
 
 
 @router.get("/llm/model/{modelCd}", response_model=List[LLMSchema])
@@ -150,4 +164,4 @@ def get_llms_by_model(
     llms = db.query(LLM).filter(
         LLM.llc_model_cd == modelCd
     ).offset(skip).limit(limit).all()
-    return llms
+    return [LLMSchema.from_db_model(llm) for llm in llms]

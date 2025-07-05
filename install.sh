@@ -13,13 +13,11 @@ if pgrep -f "python.*http.server.*5500" > /dev/null; then
     echo "Killing existing python server on port 5500..."
     pkill -f "python.*http.server.*5500" >/dev/null 2>&1
     sleep 2  # Wait for process to fully terminate
-    wait 2>/dev/null  # Suppress job termination messages
     echo "Existing server killed."
 elif lsof -ti:5500 > /dev/null 2>&1; then
     echo "Port 5500 is in use by another process. Killing it..."
-    kill -9 $(lsof -ti:5500) 2>/dev/null || true >/dev/null 2>&1
+    kill -9 $(lsof -ti:5500) 2>/dev/null || true
     sleep 2
-    wait 2>/dev/null  # Suppress job termination messages
     echo "Port 5500 freed."
 else
     echo "Port 5500 is available."
@@ -45,7 +43,6 @@ fi
 
 # Starting the VIKI AI service
 cd service
-echo "Starting viki_ai service at 8080"
+echo "Starting viki_ai service at 8000"
 nohup bash -c "source install.sh" > ../service.log 2>&1 &
-echo "Stopped viki_ai service."
 cd ..
