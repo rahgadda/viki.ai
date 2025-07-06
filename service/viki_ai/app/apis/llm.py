@@ -10,6 +10,7 @@ from app.schemas.llm import (
     LLMCreate,
     LLMUpdate
 )
+from app.utils.inference import configure_llm, get_supported_providers, validate_llm_config
 
 # Create router with version prefix
 router = APIRouter(prefix=f"/api/v{settings.VERSION}")
@@ -165,3 +166,68 @@ def get_llms_by_model(
         LLM.llc_model_cd == modelCd
     ).offset(skip).limit(limit).all()
     return [LLMSchema.from_db_model(llm) for llm in llms]
+
+@router.post("/llm/{llmId}/test")
+def test_llm_configuration(
+    llmId: str,
+    db: Session = Depends(get_db)
+):
+    """Test an LLM configuration by attempting to initialize it"""
+    # Get the LLM configuration from database
+    db_llm = db.query(LLM).filter(LLM.llc_id == llmId).first()
+    if db_llm is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"LLM configuration '{llmId}' not found"
+        )
+    
+    try:
+        # Extract values from database model
+        provider_type = getattr(db_llm, 'llc_provider_type_cd')
+        model_code = getattr(db_llm, 'llc_model_cd')
+        api_key = getattr(db_llm, 'llc_api_key')
+        endpoint_url = getattr(db_llm, 'llc_endpoint_url')
+        proxy_required = getattr(db_llm, 'llc_proxy_required', False)
+        
+        # Validate configuration first
+        validation = validate_llm_config(
+            llm_provider=provider_type,
+            model_name=model_code,
+            api_key=api_key,
+            config_file_content=None  # TODO: Load from file store if needed
+        )
+        
+        if not validation["valid"]:
+            return {
+                "success": False,
+                "errors": validation["errors"],
+                "warnings": validation["warnings"]
+            }
+        
+        # Attempt to configure the LLM
+        model = configure_llm(
+            llm_provider=provider_type,
+            model_name=model_code,
+            api_key=api_key,
+            base_url=endpoint_url,
+            temperature=0.0,
+            config_file_content=None,  # TODO: Load from file store if needed
+            proxy_required=proxy_required or False
+        )
+        
+        return {
+            "success": True,
+            "message": f"LLM configuration tested successfully",
+            "model_type": type(model).__name__,
+            "provider": provider_type,
+            "model_name": model_code
+        }
+        
+    except Exception as e:
+        settings.logger.error(f"Error testing LLM configuration {llmId}: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e),
+            "provider": getattr(db_llm, 'llc_provider_type_cd', 'unknown'),
+            "model_name": getattr(db_llm, 'llc_model_cd', 'unknown')
+        }

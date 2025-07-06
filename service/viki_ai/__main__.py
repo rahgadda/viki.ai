@@ -71,12 +71,9 @@ def main():
     # Initialize database engine
     create_db_engine()
 
-    # Create FastAPI app
-    app = create_app()
-
     # Start the FastAPI server
     settings.logger.info(f"Starting VIKI AI server on http://0.0.0.0:8000")
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    uvicorn.run("viki_ai.__main__:create_app", host="0.0.0.0", port=8000, log_level="info", reload=True, factory=True)
 
 
 if __name__ == "__main__":
