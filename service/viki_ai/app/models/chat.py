@@ -26,7 +26,7 @@ class ChatMessage(Base):
     msg_id = Column(String(80), primary_key=True)
     msg_cht_id = Column(String(80), ForeignKey("chat_sessions.cht_id", ondelete="CASCADE"), nullable=False)
     msg_agent_name = Column(String(240), nullable=False)
-    msg_role = Column(String(10), nullable=False)
+    msg_role = Column(String(30), nullable=False)
     msg_content = Column(String(4000), nullable=False)
     created_by = Column(String(80))
     last_updated_by = Column(String(80))
@@ -35,7 +35,7 @@ class ChatMessage(Base):
 
     # Check constraint for role values
     __table_args__ = (
-        CheckConstraint("msg_role IN ('USER', 'AI')", name='check_msg_role'),
+        CheckConstraint("msg_role IN ('system', 'user', 'assistant', 'tool')", name='check_msg_role'),
     )
 
     # Relationships

@@ -1,3 +1,4 @@
+from httpx import stream
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -191,6 +192,7 @@ def test_llm_configuration(
         api_key = getattr(db_llm, 'llc_api_key')
         endpoint_url = getattr(db_llm, 'llc_endpoint_url')
         proxy_required = getattr(db_llm, 'llc_proxy_required', False)
+        streaming = getattr(db_llm, 'llc_streaming', False)
         
         # Attempt to configure the LLM
         model = configure_llm(
@@ -199,7 +201,7 @@ def test_llm_configuration(
             api_key=api_key,
             base_url=endpoint_url,
             temperature=0.0,
-            config_file_content=None,  # TODO: Load from file store if needed
+            streaming=streaming or False,
             proxy_required=proxy_required or False
         )
         

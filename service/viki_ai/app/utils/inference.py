@@ -1,6 +1,9 @@
 import os
 import logging
-from typing import Any, Optional, Dict
+from turtle import st
+from typing import Any, Optional, Dict, List
+
+from httpx import stream
 from pydantic import SecretStr
 
 # Import all LangChain providers with error handling
@@ -55,8 +58,8 @@ def configure_llm(
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,
     temperature: float = 0.0,
-    config_file_content: Optional[Dict[str, Any]] = None,
-    proxy_required: bool = False
+    proxy_required: bool = False,
+    streaming: bool = False
 ) -> Any:
     """
     Configure and return the LLM model based on the provider.
@@ -69,6 +72,7 @@ def configure_llm(
         temperature: Temperature setting for the model (default: 0.0)
         config_file_content: Configuration file content (required for AWS)
         proxy_required: Whether to configure proxy settings
+        streaming: Whether to enable streaming for the model
         
     Returns:
         Configured LLM model instance
@@ -112,7 +116,8 @@ def configure_llm(
             kwargs = {
                 "model": model_name,
                 "api_key": SecretStr(api_key),
-                "temperature": temperature
+                "temperature": temperature,
+                "streaming": streaming
             }
             if base_url:
                 kwargs["base_url"] = base_url
@@ -130,7 +135,8 @@ def configure_llm(
             model = ChatGroq(
                 model=model_name,
                 api_key=SecretStr(api_key),
-                temperature=temperature
+                temperature=temperature,
+                streaming=streaming
             )
             
         elif provider == "azure":
@@ -143,7 +149,8 @@ def configure_llm(
             
             model = AzureAIChatCompletionsModel(
                 model=model_name,
-                endpoint=base_url or "https://models.github.ai/inference"
+                endpoint=base_url or "https://models.github.ai/inference",
+                temperature=temperature
             )
             
         elif provider == "huggingface":
@@ -159,7 +166,7 @@ def configure_llm(
                  repo_id=model_name,
                  task="text-generation"
             ) # type: ignore
-            model = ChatHuggingFace(llm=llm, model_id=model_name)
+            model = ChatHuggingFace(llm=llm, model_id=model_name, streaming=streaming, temperature=temperature)
 
         elif provider == "cerebras":
             if ChatCerebras is None:
@@ -172,7 +179,8 @@ def configure_llm(
             model = ChatCerebras(
                 model=model_name,
                 api_key=SecretStr(api_key),
-                temperature=temperature
+                temperature=temperature,
+                streaming=streaming
             )
             
         elif provider == "openrouter":
@@ -187,7 +195,8 @@ def configure_llm(
                 model=model_name,
                 api_key=SecretStr(api_key),
                 temperature=temperature,
-                base_url="https://openrouter.ai/api/v1"
+                base_url="https://openrouter.ai/api/v1",
+                streaming=streaming
             )
             
         elif provider == "anthropic":
@@ -201,7 +210,8 @@ def configure_llm(
             model = ChatAnthropic(
                 model=model_name, # type: ignore
                 api_key=SecretStr(api_key),
-                temperature=temperature
+                temperature=temperature,
+                streaming=streaming
             )
             
         elif provider == "aws":
@@ -231,20 +241,51 @@ def configure_llm(
             logger.debug("Proxy configuration disabled")
 
 
-    """Get list of available LLM providers based on installed packages."""
-    providers = []
+
+def generate_llm_response(
+    llm_provider: str,
+    model_name: str,
+    api_key: Optional[str] = None,
+    base_url: Optional[str] = None,
+    temperature: float = 0.0,
+    proxy_required: bool = False,
+    streaming: bool = False,
+    messages: Optional[List[Any]] = None
+) -> Any:
+    """
+    Generate a response from the LLM model based on the provided messages.
     
-    if ChatOllama is not None:
-        providers.append("ollama")
-    if ChatOpenAI is not None:
-        providers.extend(["openai", "openrouter"])
-    if ChatGroq is not None:
-        providers.append("groq")
-    if AzureAIChatCompletionsModel is not None:
-        providers.append("azure")
-    if ChatCerebras is not None:
-        providers.append("cerebras")
+    Args:
+        llm_provider: The LLM provider to use
+        model_name: The model name to use
+        api_key: API key for the provider (if required)
+        base_url: Base URL for the provider (if required)
+        temperature: Temperature setting for the model (default: 0.0)
+        proxy_required: Whether to configure proxy settings
+        streaming: Whether to enable streaming for the model
+        messages: List of LangChain message objects to send to the LLM
+        
+    Returns:
+        Response from the LLM model
+    """
     
-    # Note: huggingface, anthropic, and aws are temporarily disabled due to parameter compatibility issues
+    logger = settings.logger
     
-    return providers
+    # Configure the LLM model
+    model = configure_llm(
+        llm_provider=llm_provider,
+        model_name=model_name,
+        api_key=api_key,
+        base_url=base_url,
+        temperature=temperature,
+        proxy_required=proxy_required
+    )
+
+    if model is None:
+        logger.error(f"Failed to configure LLM model: {llm_provider}, {model_name}")
+        return None
+
+    # Use invoke method with LangChain message objects
+    response = model.invoke(messages or [])
+    
+    return response

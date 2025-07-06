@@ -6,6 +6,7 @@ from app.utils.database import get_db
 from app.utils.config import settings
 from app.models.chat import ChatSession, ChatMessage
 from app.models.agent import Agent
+from app.models.llm import LLM
 from app.schemas.chat import (
     ChatSession as ChatSessionSchema,
     ChatMessage as ChatMessageSchema,
@@ -19,6 +20,8 @@ from app.schemas.chat import (
     ChatSessionWithMessages,
     ChatMessageWithSession
 )
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
+from app.utils.inference import generate_llm_response
 
 # Create router with version prefix
 router = APIRouter(prefix=f"/api/v{settings.VERSION}")
@@ -110,12 +113,12 @@ def create_chat_session_with_message(
     )
     db.add(db_session)
     
-    # Create initial message with USER role
+    # Create initial message with user role
     db_message = ChatMessage(
         msg_id=message_id,
         msg_cht_id=session_id,
         msg_agent_name=db_agent.agt_name,
-        msg_role="USER",
+        msg_role="user",
         msg_content=chat_create.messageContent,
         created_by=username,
         last_updated_by=username
@@ -126,6 +129,74 @@ def create_chat_session_with_message(
     db.refresh(db_session)
     db.refresh(db_message)
     
+    # Create LangChain message list and generate LLM response
+    try:
+        # Get agent's LLM configuration
+        db_llm = db.query(LLM).filter(LLM.llc_id == db_agent.agt_llc_id).first()
+        if db_llm is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"LLM configuration for agent '{chat_create.chatAgentId}' not found"
+            )
+        
+        # Create LangChain message list
+        langchain_messages = []
+        
+        # Add system message if agent has system prompt
+        system_prompt = getattr(db_agent, 'agt_system_prompt', None)
+        if system_prompt:
+            langchain_messages.append(SystemMessage(content=system_prompt))
+        
+        # Add user message
+        langchain_messages.append(HumanMessage(content=chat_create.messageContent))
+        
+        # Generate LLM response
+        ai_response = generate_llm_response(
+            llm_provider=getattr(db_llm, 'llc_provider_type_cd'),
+            model_name=getattr(db_llm, 'llc_model_cd'),
+            api_key=getattr(db_llm, 'llc_api_key', None),
+            base_url=getattr(db_llm, 'llc_endpoint_url', None),
+            temperature=0.0,
+            proxy_required=getattr(db_llm, 'llc_proxy_required', False),
+            streaming=getattr(db_llm, 'llc_streaming', False),
+            messages=langchain_messages
+        )
+        
+        # Create AI response message if we got a response
+        if ai_response and hasattr(ai_response, 'content'):
+            ai_message_id = str(uuid.uuid4())
+            db_ai_message = ChatMessage(
+                msg_id=ai_message_id,
+                msg_cht_id=session_id,
+                msg_agent_name=db_agent.agt_name,
+                msg_role="assistant",
+                msg_content=ai_response.content,
+                created_by=username,
+                last_updated_by=username
+            )
+            db.add(db_ai_message)
+            db.commit()
+            db.refresh(db_ai_message)
+            
+            # Convert both messages to schemas
+            message_data = ChatMessageSchema.from_db_model(db_message)
+            ai_message_data = ChatMessageSchema.from_db_model(db_ai_message)
+            
+            # Convert to public schemas for response
+            session_data = ChatSessionSchema.from_db_model(db_session)
+            session_public = ChatSessionPublic(**session_data.dict())
+            message_public = ChatMessagePublic(**message_data.dict())
+            ai_message_public = ChatMessagePublic(**ai_message_data.dict())
+            
+            return ChatSessionWithMessages(
+                **session_public.dict(),
+                messages=[message_public, ai_message_public]
+            )
+    
+    except Exception as e:
+        settings.logger.error(f"Error generating LLM response: {str(e)}")
+        # Continue without AI response if LLM fails
+    
     # Return session with the created message
     session_data = ChatSessionSchema.from_db_model(db_session)
     message_data = ChatMessageSchema.from_db_model(db_message)
@@ -133,45 +204,13 @@ def create_chat_session_with_message(
     # Convert to public schemas for response
     session_public = ChatSessionPublic(**session_data.dict())
     message_public = ChatMessagePublic(**message_data.dict())
+
+
     
     return ChatSessionWithMessages(
         **session_public.dict(),
         messages=[message_public]
     )
-
-
-@router.post("/chat/sessions/simple", response_model=ChatSessionSchema, status_code=status.HTTP_201_CREATED)
-def create_chat_session(
-    chat_create: ChatSessionCreate,
-    db: Session = Depends(get_db),
-    username: str = Depends(get_username)
-):
-    """Create a new empty chat session"""
-    # Verify agent exists
-    db_agent = db.query(Agent).filter(Agent.agt_id == chat_create.chatAgentId).first()
-    if db_agent is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Agent '{chat_create.chatAgentId}' not found"
-        )
-    
-    # Generate UUID for the chat session
-    session_id = str(uuid.uuid4())
-    
-    # Create chat session
-    db_session = ChatSession(
-        cht_id=session_id,
-        cht_name=chat_create.chatName,
-        cht_agt_id=chat_create.chatAgentId,
-        created_by=username,
-        last_updated_by=username
-    )
-    db.add(db_session)
-    db.commit()
-    db.refresh(db_session)
-    
-    return ChatSessionSchema.from_db_model(db_session)
-
 
 @router.put("/chat/sessions/{sessionId}", response_model=ChatSessionSchema)
 def update_chat_session(
@@ -240,10 +279,10 @@ def get_chat_messages(
     if sessionId:
         query = query.filter(ChatMessage.msg_cht_id == sessionId)
     if role:
-        if role not in ["USER", "AI"]:
+        if role not in ["system", "user", "assistant", "tool"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Role must be either 'USER' or 'AI'"
+                detail="Role must be one of: system, user, assistant, or tool"
             )
         query = query.filter(ChatMessage.msg_role == role)
     
@@ -281,7 +320,7 @@ def get_chat_message(
     )
 
 
-@router.post("/chat/sessions/{sessionId}/messages", response_model=ChatMessageSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/chat/sessions/{sessionId}/messages", response_model=List[ChatMessageSchema], status_code=status.HTTP_201_CREATED)
 def create_chat_message(
     sessionId: str,
     message_create: ChatMessageCreate,
@@ -297,10 +336,18 @@ def create_chat_message(
             detail=f"Chat session '{sessionId}' not found"
         )
     
+    # Get agent for the session
+    db_agent = db.query(Agent).filter(Agent.agt_id == db_session.cht_agt_id).first()
+    if db_agent is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Agent for session '{sessionId}' not found"
+        )
+    
     # Generate UUID for the message
     message_id = str(uuid.uuid4())
     
-    # Create message
+    # Create user message
     db_message = ChatMessage(
         msg_id=message_id,
         msg_cht_id=sessionId,
@@ -314,7 +361,82 @@ def create_chat_message(
     db.commit()
     db.refresh(db_message)
     
-    return ChatMessageSchema.from_db_model(db_message)
+    created_messages = [ChatMessageSchema.from_db_model(db_message)]
+    
+    # Generate LLM response if the new message is from user
+    if message_create.messageRole == "user":
+        try:
+            # Get agent's LLM configuration
+            db_llm = db.query(LLM).filter(LLM.llc_id == db_agent.agt_llc_id).first()
+            if db_llm is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"LLM configuration for agent not found"
+                )
+            
+            # Get all messages for this session to build context
+            all_messages = db.query(ChatMessage).filter(
+                ChatMessage.msg_cht_id == sessionId
+            ).order_by(ChatMessage.creation_dt).all()
+            
+            # Create LangChain message list
+            langchain_messages = []
+            
+            # Add system message if agent has system prompt
+            system_prompt = getattr(db_agent, 'agt_system_prompt', None)
+            if system_prompt:
+                langchain_messages.append(SystemMessage(content=system_prompt))
+            
+            # Add all messages from the session
+            for msg in all_messages:
+                msg_role = getattr(msg, 'msg_role')
+                msg_content = getattr(msg, 'msg_content')
+                
+                if msg_role == "user":
+                    langchain_messages.append(HumanMessage(content=msg_content))
+                elif msg_role == "assistant":
+                    langchain_messages.append(AIMessage(content=msg_content))
+                elif msg_role == "system":
+                    langchain_messages.append(SystemMessage(content=msg_content))
+                elif msg_role == "tool":
+                    langchain_messages.append(ToolMessage(content=msg_content, tool_call_id=""))
+            
+            # Generate LLM response
+            ai_response = generate_llm_response(
+                llm_provider=getattr(db_llm, 'llc_provider_type_cd'),
+                model_name=getattr(db_llm, 'llc_model_cd'),
+                api_key=getattr(db_llm, 'llc_api_key', None),
+                base_url=getattr(db_llm, 'llc_endpoint_url', None),
+                temperature=0.0,
+                proxy_required=getattr(db_llm, 'llc_proxy_required', False),
+                streaming=getattr(db_llm, 'llc_streaming', False),
+                messages=langchain_messages
+            )
+            
+            # Create AI response message if we got a response
+            if ai_response and hasattr(ai_response, 'content'):
+                ai_message_id = str(uuid.uuid4())
+                db_ai_message = ChatMessage(
+                    msg_id=ai_message_id,
+                    msg_cht_id=sessionId,
+                    msg_agent_name=db_agent.agt_name,
+                    msg_role="assistant",
+                    msg_content=ai_response.content,
+                    created_by=username,
+                    last_updated_by=username
+                )
+                db.add(db_ai_message)
+                db.commit()
+                db.refresh(db_ai_message)
+                
+                # Add AI message to the response
+                created_messages.append(ChatMessageSchema.from_db_model(db_ai_message))
+        
+        except Exception as e:
+            settings.logger.error(f"Error generating LLM response: {str(e)}")
+            # Continue without AI response if LLM fails
+    
+    return created_messages
 
 
 @router.put("/chat/messages/{messageId}", response_model=ChatMessageSchema)
