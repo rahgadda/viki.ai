@@ -231,7 +231,6 @@ def configure_llm(
             logger.debug("Proxy configuration disabled")
 
 
-def get_supported_providers():
     """Get list of available LLM providers based on installed packages."""
     providers = []
     
@@ -249,60 +248,3 @@ def get_supported_providers():
     # Note: huggingface, anthropic, and aws are temporarily disabled due to parameter compatibility issues
     
     return providers
-
-
-def validate_llm_config(llm_provider: str, model_name: str, api_key: Optional[str] = None, 
-                       config_file_content: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """
-    Validate LLM configuration parameters.
-    
-    Args:
-        llm_provider: The LLM provider
-        model_name: The model name
-        api_key: API key (if required)
-        config_file_content: Configuration file content (for AWS)
-        
-    Returns:
-        Dictionary with validation results
-    """
-    provider = llm_provider.lower()
-    errors = []
-    warnings = []
-    
-    # Check if provider is supported
-    supported_providers = get_supported_providers()
-    if provider not in supported_providers:
-        errors.append(f"Provider '{llm_provider}' is not supported or package not installed. Available: {supported_providers}")
-        return {"valid": False, "errors": errors, "warnings": warnings}
-    
-    # Provider-specific validation
-    if provider == "ollama":
-        if not model_name:
-            errors.append("Model name is required for Ollama")
-            
-    elif provider in ["openai", "groq", "huggingface", "cerebras", "openrouter", "anthropic"]:
-        if not api_key:
-            errors.append(f"API key is required for {provider}")
-        if not model_name:
-            errors.append(f"Model name is required for {provider}")
-            
-    elif provider == "azure":
-        if not api_key:
-            errors.append("API key is required for Azure AI")
-            
-    elif provider == "aws":
-        if not model_name:
-            errors.append("Model name is required for AWS BedRock")
-        if not config_file_content:
-            errors.append("Configuration file is required for AWS BedRock")
-        elif isinstance(config_file_content, dict):
-            required_fields = ["access_key", "secret_key", "region"]
-            missing_fields = [field for field in required_fields if not config_file_content.get(field)]
-            if missing_fields:
-                errors.append(f"AWS configuration missing required fields: {missing_fields}")
-    
-    return {
-        "valid": len(errors) == 0,
-        "errors": errors,
-        "warnings": warnings
-    }

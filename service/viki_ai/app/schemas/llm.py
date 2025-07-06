@@ -7,43 +7,35 @@ class LLMBase(BaseModel):
     llmProviderTypeCd: str = Field(
         ..., 
         max_length=80, 
-        description="Provider type code",
-        validation_alias="llmProviderTypeCd",
-        serialization_alias="llmProviderTypeCd"
+        description="Provider type code"
     )
     llmModelCd: str = Field(
         ..., 
         max_length=240, 
-        description="Model code",
-        validation_alias="llmModelCd",
-        serialization_alias="llmModelCd"
+        description="Model code"
     )
     llmEndpointUrl: Optional[str] = Field(
         None, 
         max_length=4000, 
-        description="Endpoint URL",
-        validation_alias="llmEndpointUrl",
-        serialization_alias="llmEndpointUrl"
+        description="Endpoint URL"
     )
     llmApiKey: Optional[str] = Field(
         None, 
         max_length=240, 
-        description="API key",
-        validation_alias="llmApiKey",
-        serialization_alias="llmApiKey"
+        description="API key"
     )
     llmFileStoreId: Optional[str] = Field(
         None, 
         max_length=80, 
-        description="Configuration file ID",
-        validation_alias="llmFileStoreId",
-        serialization_alias="llmFileStoreId"
+        description="Configuration file ID"
     )
     llmProxyRequired: Optional[bool] = Field(
         False, 
-        description="Whether proxy is required for this LLM",
-        validation_alias="llmProxyRequired",
-        serialization_alias="llmProxyRequired"
+        description="Whether proxy is required for this LLM"
+    )
+    llmStreaming: Optional[bool] = Field(
+        False, 
+        description="Whether this LLM supports streaming responses"
     )
 
     class Config:
@@ -58,43 +50,35 @@ class LLMUpdate(BaseModel):
     llmProviderTypeCd: Optional[str] = Field(
         None, 
         max_length=80, 
-        description="Provider type code",
-        validation_alias="llmProviderTypeCd",
-        serialization_alias="llmProviderTypeCd"
+        description="Provider type code"
     )
     llmModelCd: Optional[str] = Field(
         None, 
         max_length=240, 
-        description="Model code",
-        validation_alias="llmModelCd",
-        serialization_alias="llmModelCd"
+        description="Model code"
     )
     llmEndpointUrl: Optional[str] = Field(
         None, 
         max_length=4000, 
-        description="Endpoint URL",
-        validation_alias="llmEndpointUrl",
-        serialization_alias="llmEndpointUrl"
+        description="Endpoint URL"
     )
     llmApiKey: Optional[str] = Field(
         None, 
         max_length=240, 
-        description="API key",
-        validation_alias="llmApiKey",
-        serialization_alias="llmApiKey"
+        description="API key"
     )
     llmFileStoreId: Optional[str] = Field(
         None, 
         max_length=80, 
-        description="Configuration file ID",
-        validation_alias="llmFileStoreId",
-        serialization_alias="llmFileStoreId"
+        description="Configuration file ID"
     )
     llmProxyRequired: Optional[bool] = Field(
         None, 
-        description="Whether proxy is required for this LLM",
-        validation_alias="llmProxyRequired",
-        serialization_alias="llmProxyRequired"
+        description="Whether proxy is required for this LLM"
+    )
+    llmStreaming: Optional[bool] = Field(
+        None, 
+        description="Whether this LLM supports streaming responses"
     )
 
     class Config:
@@ -105,35 +89,25 @@ class LLM(LLMBase):
     llmId: str = Field(
         ..., 
         max_length=80, 
-        description="LLM configuration ID",
-        validation_alias="llmId",
-        serialization_alias="llmId"
+        description="LLM configuration ID"
     )
     createdBy: Optional[str] = Field(
         None, 
         max_length=80, 
-        description="Created by user",
-        validation_alias="createdBy",
-        serialization_alias="createdBy"
+        description="Created by user"
     )
     lastUpdatedBy: Optional[str] = Field(
         None, 
         max_length=80, 
-        description="Last updated by user",
-        validation_alias="lastUpdatedBy",
-        serialization_alias="lastUpdatedBy"
+        description="Last updated by user"
     )
     creationDt: datetime = Field(
         ..., 
-        description="Creation timestamp",
-        validation_alias="creationDt",
-        serialization_alias="creationDt"
+        description="Creation timestamp"
     )
     lastUpdatedDt: datetime = Field(
         ..., 
-        description="Last updated timestamp",
-        validation_alias="lastUpdatedDt",
-        serialization_alias="lastUpdatedDt"
+        description="Last updated timestamp"
     )
 
     class Config:
@@ -151,6 +125,7 @@ class LLM(LLMBase):
             llmApiKey=db_model.llc_api_key,
             llmFileStoreId=db_model.llc_fls_id,
             llmProxyRequired=db_model.llc_proxy_required,
+            llmStreaming=db_model.llc_streaming,
             createdBy=db_model.created_by,
             lastUpdatedBy=db_model.last_updated_by,
             creationDt=db_model.creation_dt,
@@ -162,69 +137,53 @@ class LLMPublic(BaseModel):
     llmId: str = Field(
         ..., 
         max_length=80, 
-        description="LLM configuration ID",
-        validation_alias="llmId",
-        serialization_alias="llmId"
+        description="LLM configuration ID"
     )
     llmProviderTypeCd: str = Field(
         ..., 
         max_length=80, 
-        description="Provider type code",
-        validation_alias="llmProviderTypeCd",
-        serialization_alias="llmProviderTypeCd"
+        description="Provider type code"
     )
     llmModelCd: str = Field(
         ..., 
         max_length=240, 
-        description="Model code",
-        validation_alias="llmModelCd",
-        serialization_alias="llmModelCd"
+        description="Model code"
     )
     llmEndpointUrl: Optional[str] = Field(
         None, 
         max_length=4000, 
-        description="Endpoint URL",
-        validation_alias="llmEndpointUrl",
-        serialization_alias="llmEndpointUrl"
+        description="Endpoint URL"
     )
     llmFileStoreId: Optional[str] = Field(
         None, 
         max_length=80, 
-        description="Configuration file ID",
-        validation_alias="llmFileStoreId",
-        serialization_alias="llmFileStoreId"
+        description="Configuration file ID"
     )
     llmProxyRequired: Optional[bool] = Field(
         False, 
-        description="Whether proxy is required for this LLM",
-        validation_alias="llmProxyRequired",
-        serialization_alias="llmProxyRequired"
+        description="Whether proxy is required for this LLM"
+    )
+    llmStreaming: Optional[bool] = Field(
+        False, 
+        description="Whether this LLM supports streaming responses"
     )
     createdBy: Optional[str] = Field(
         None, 
         max_length=80, 
-        description="Created by user",
-        validation_alias="createdBy",
-        serialization_alias="createdBy"
+        description="Created by user"
     )
     lastUpdatedBy: Optional[str] = Field(
         None, 
         max_length=80, 
-        description="Last updated by user",
-        validation_alias="lastUpdatedBy",
-        serialization_alias="lastUpdatedBy"
+        description="Last updated by user"
     )
     creationDt: datetime = Field(
         ..., 
-        description="Creation timestamp",
-        validation_alias="creationDt",
-        serialization_alias="creationDt"
+        description="Creation timestamp"
     )
     lastUpdatedDt: datetime = Field(
         ..., 
-        description="Last updated timestamp",
-        validation_alias="lastUpdatedDt",
-        serialization_alias="lastUpdatedDt"
+        description="Last updated timestamp"
     )
 
     class Config:

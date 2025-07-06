@@ -10,7 +10,7 @@ from app.schemas.llm import (
     LLMCreate,
     LLMUpdate
 )
-from app.utils.inference import configure_llm, get_supported_providers, validate_llm_config
+from app.utils.inference import configure_llm
 
 # Create router with version prefix
 router = APIRouter(prefix=f"/api/v{settings.VERSION}")
@@ -78,6 +78,7 @@ def create_llm(
         llc_api_key=llm_create.llmApiKey,
         llc_fls_id=llm_create.llmFileStoreId,
         llc_proxy_required=llm_create.llmProxyRequired,
+        llc_streaming=llm_create.llmStreaming,
         created_by=username,
         last_updated_by=username
     )
@@ -115,6 +116,8 @@ def update_llm(
         setattr(db_llm, 'llc_fls_id', llm_update.llmFileStoreId)
     if llm_update.llmProxyRequired is not None:
         setattr(db_llm, 'llc_proxy_required', llm_update.llmProxyRequired)
+    if llm_update.llmStreaming is not None:
+        setattr(db_llm, 'llc_streaming', llm_update.llmStreaming)
     
     setattr(db_llm, 'last_updated_by', username)
     
@@ -188,21 +191,6 @@ def test_llm_configuration(
         api_key = getattr(db_llm, 'llc_api_key')
         endpoint_url = getattr(db_llm, 'llc_endpoint_url')
         proxy_required = getattr(db_llm, 'llc_proxy_required', False)
-        
-        # Validate configuration first
-        validation = validate_llm_config(
-            llm_provider=provider_type,
-            model_name=model_code,
-            api_key=api_key,
-            config_file_content=None  # TODO: Load from file store if needed
-        )
-        
-        if not validation["valid"]:
-            return {
-                "success": False,
-                "errors": validation["errors"],
-                "warnings": validation["warnings"]
-            }
         
         # Attempt to configure the LLM
         model = configure_llm(

@@ -14,6 +14,7 @@ class LLM(Base):
     llc_api_key = Column(String(240))
     llc_fls_id = Column(String(80), ForeignKey("file_store.fls_id", ondelete="SET NULL"))
     llc_proxy_required = Column(Boolean, default=False)
+    llc_streaming = Column(Boolean, default=False)
     created_by = Column(String(80))
     last_updated_by = Column(String(80))
     creation_dt = Column(DateTime, default=datetime.utcnow)
