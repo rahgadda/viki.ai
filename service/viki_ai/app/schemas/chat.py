@@ -259,10 +259,6 @@ class ChatSessionWithMessages(ChatSessionPublic):
     messages: List[ChatMessagePublic] = Field(default_factory=list, description="Chat messages in chronological order")
 
 
-class ChatMessageWithSession(ChatMessagePublic):
-    chatSession: Optional[ChatSessionPublic] = Field(None, description="Associated chat session", alias="chat_session")
-
-
 # Special schema for creating chat session with initial message
 class ChatSessionCreateWithMessage(BaseModel):
     messageContent: str = Field(

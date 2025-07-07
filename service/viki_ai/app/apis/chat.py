@@ -16,8 +16,7 @@ from app.schemas.chat import (
     ChatSessionCreateWithMessage,
     ChatSessionPublic,
     ChatMessagePublic,
-    ChatSessionWithMessages,
-    ChatMessageWithSession
+    ChatSessionWithMessages
 )
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 from app.utils.inference import generate_llm_response
@@ -262,63 +261,6 @@ def delete_chat_session(
     db.delete(db_session)
     db.commit()
 
-
-# Chat Message endpoints
-@router.get("/chat/messages", response_model=List[ChatMessageSchema])
-def get_chat_messages(
-    sessionId: Optional[str] = None,
-    role: Optional[str] = None,
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db)
-):
-    """Get chat messages with pagination and optional filtering"""
-    query = db.query(ChatMessage)
-    
-    if sessionId:
-        query = query.filter(ChatMessage.msg_cht_id == sessionId)
-    if role:
-        if role not in ["system", "user", "assistant", "tool"]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Role must be one of: system, user, assistant, or tool"
-            )
-        query = query.filter(ChatMessage.msg_role == role)
-    
-    # Order by creation date
-    query = query.order_by(ChatMessage.creation_dt)
-    
-    messages = query.offset(skip).limit(limit).all()
-    return [ChatMessageSchema.from_db_model(message) for message in messages]
-
-
-@router.get("/chat/messages/{messageId}", response_model=ChatMessageWithSession)
-def get_chat_message(
-    messageId: str,
-    db: Session = Depends(get_db)
-):
-    """Get a specific chat message by ID with session info"""
-    db_message = db.query(ChatMessage).filter(ChatMessage.msg_id == messageId).first()
-    if db_message is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Chat message '{messageId}' not found"
-        )
-    
-    # Convert to schema with session
-    message_data = ChatMessageSchema.from_db_model(db_message)
-    session_data = ChatSessionSchema.from_db_model(db_message.chat_session)
-    
-    # Convert to public schemas for response
-    message_public = ChatMessagePublic(**message_data.dict())
-    session_public = ChatSessionPublic(**session_data.dict())
-    
-    return ChatMessageWithSession(
-        **message_public.dict(),
-        chat_session=session_public
-    )
-
-
 @router.post("/chat/sessions/{sessionId}/messages", response_model=List[ChatMessageSchema], status_code=status.HTTP_201_CREATED)
 def create_chat_message(
     sessionId: str,
@@ -438,8 +380,9 @@ def create_chat_message(
     return created_messages
 
 
-@router.put("/chat/messages/{messageId}", response_model=List[ChatMessageSchema])
+@router.put("/chat/sessions/{sessionId}/messages/{messageId}", response_model=List[ChatMessageSchema])
 def update_chat_message(
+    sessionId: str,
     messageId: str,
     message_update: ChatMessageUpdateUser,
     db: Session = Depends(get_db),
@@ -447,11 +390,23 @@ def update_chat_message(
 ):
     """Update a user message. Only user messages can be modified. After update, all subsequent messages 
     are deleted and a new LLM response is generated."""
-    db_message = db.query(ChatMessage).filter(ChatMessage.msg_id == messageId).first()
+    # Verify session exists
+    db_session = db.query(ChatSession).filter(ChatSession.cht_id == sessionId).first()
+    if db_session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Chat session '{sessionId}' not found"
+        )
+    
+    # Find message and verify it belongs to the specified session
+    db_message = db.query(ChatMessage).filter(
+        ChatMessage.msg_id == messageId,
+        ChatMessage.msg_cht_id == sessionId
+    ).first()
     if db_message is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Chat message '{messageId}' not found"
+            detail=f"Chat message '{messageId}' not found in session '{sessionId}'"
         )
     
     # Only allow modification of user messages
@@ -461,15 +416,7 @@ def update_chat_message(
             detail="Only user messages can be modified"
         )
     
-    # Get the session and agent information
-    session_id = getattr(db_message, 'msg_cht_id')
-    db_session = db.query(ChatSession).filter(ChatSession.cht_id == session_id).first()
-    if db_session is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Chat session for message not found"
-        )
-    
+    # Get agent information
     db_agent = db.query(Agent).filter(Agent.agt_id == db_session.cht_agt_id).first()
     if db_agent is None:
         raise HTTPException(
@@ -486,7 +433,7 @@ def update_chat_message(
     # Delete all messages after this one in the session
     message_creation_dt = getattr(db_message, 'creation_dt')
     subsequent_messages = db.query(ChatMessage).filter(
-        ChatMessage.msg_cht_id == session_id,
+        ChatMessage.msg_cht_id == sessionId,
         ChatMessage.creation_dt > message_creation_dt
     ).all()
     
@@ -509,7 +456,7 @@ def update_chat_message(
         
         # Get all remaining messages for this session to build context
         all_messages = db.query(ChatMessage).filter(
-            ChatMessage.msg_cht_id == session_id
+            ChatMessage.msg_cht_id == sessionId
         ).order_by(ChatMessage.creation_dt).all()
         
         # Create LangChain message list
@@ -551,7 +498,7 @@ def update_chat_message(
             ai_message_id = str(uuid.uuid4())
             db_ai_message = ChatMessage(
                 msg_id=ai_message_id,
-                msg_cht_id=session_id,
+                msg_cht_id=sessionId,
                 msg_agent_name=db_agent.agt_name,
                 msg_role="assistant",
                 msg_content=ai_response.content,
@@ -572,17 +519,30 @@ def update_chat_message(
     return updated_messages
 
 
-@router.delete("/chat/messages/{messageId}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/chat/sessions/{sessionId}/messages/{messageId}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_chat_message(
+    sessionId: str,
     messageId: str,
     db: Session = Depends(get_db)
 ):
     """Delete a chat message"""
-    db_message = db.query(ChatMessage).filter(ChatMessage.msg_id == messageId).first()
+    # Verify session exists
+    db_session = db.query(ChatSession).filter(ChatSession.cht_id == sessionId).first()
+    if db_session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Chat session '{sessionId}' not found"
+        )
+    
+    # Find message and verify it belongs to the specified session
+    db_message = db.query(ChatMessage).filter(
+        ChatMessage.msg_id == messageId,
+        ChatMessage.msg_cht_id == sessionId
+    ).first()
     if db_message is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Chat message '{messageId}' not found"
+            detail=f"Chat message '{messageId}' not found in session '{sessionId}'"
         )
     
     db.delete(db_message)
