@@ -99,7 +99,6 @@ class ChatMessageBase(BaseModel):
     )
     messageContent: str = Field(
         ..., 
-        max_length=4000,
         description="Message content as text"
     )
 
@@ -110,7 +109,6 @@ class ChatMessageBase(BaseModel):
 class ChatMessageCreate(BaseModel):
     messageContent: str = Field(
         ..., 
-        max_length=4000,
         description="Message content as text"
     )
 
@@ -121,7 +119,6 @@ class ChatMessageCreate(BaseModel):
 class ChatMessageUpdateUser(BaseModel):
     messageContent: str = Field(
         ..., 
-        max_length=4000,
         description="Message content as text"
     )
 
@@ -237,7 +234,6 @@ class ChatMessagePublic(BaseModel):
     )
     messageContent: str = Field(
         ..., 
-        max_length=4000,
         description="Message content as text"
     )
     creationDt: datetime = Field(

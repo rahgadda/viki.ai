@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, ForeignKey, CheckConstraint
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, CheckConstraint
 from sqlalchemy.orm import relationship
 from app.utils.database import Base
 from datetime import datetime
@@ -27,7 +27,7 @@ class ChatMessage(Base):
     msg_cht_id = Column(String(80), ForeignKey("chat_sessions.cht_id", ondelete="CASCADE"), nullable=False)
     msg_agent_name = Column(String(240), nullable=False)
     msg_role = Column(String(30), nullable=False)
-    msg_content = Column(String(4000), nullable=False)
+    msg_content = Column(Text, nullable=False)
     created_by = Column(String(80))
     last_updated_by = Column(String(80))
     creation_dt = Column(DateTime, default=datetime.utcnow)
