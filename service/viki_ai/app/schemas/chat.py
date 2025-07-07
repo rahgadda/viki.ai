@@ -107,22 +107,20 @@ class ChatMessageBase(BaseModel):
         populate_by_name = True
 
 
-class ChatMessageCreate(ChatMessageBase):
-    pass
+class ChatMessageCreate(BaseModel):
+    messageContent: str = Field(
+        ..., 
+        max_length=4000,
+        description="Message content as text"
+    )
+
+    class Config:
+        populate_by_name = True
 
 
-class ChatMessageUpdate(BaseModel):
-    messageAgentName: Optional[str] = Field(
-        None, 
-        max_length=240, 
-        description="Agent name"
-    )
-    messageRole: Optional[Literal["system", "user", "assistant", "tool"]] = Field(
-        None, 
-        description="Message role: system, user, assistant, or tool"
-    )
-    messageContent: Optional[str] = Field(
-        None, 
+class ChatMessageUpdateUser(BaseModel):
+    messageContent: str = Field(
+        ..., 
         max_length=4000,
         description="Message content as text"
     )
