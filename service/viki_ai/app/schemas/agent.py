@@ -46,20 +46,13 @@ class Agent(AgentBase):
             lastUpdatedDt=db_model.last_updated_dt
         )        
 
-class AgentToolBase(BaseModel):
-    agentId: str = Field(..., max_length=80, description="Agent ID")
+class AgentToolCreate(BaseModel):
     toolId: str = Field(..., max_length=80, description="Tool ID")
 
 
-class AgentToolCreate(AgentToolBase):
-    pass
-
-
-class AgentToolUpdate(BaseModel):
-    pass
-
-
-class AgentTool(AgentToolBase):
+class AgentTool(BaseModel):
+    agentId: str = Field(..., max_length=80, description="Agent ID")
+    toolId: str = Field(..., max_length=80, description="Tool ID")
     createdBy: Optional[str] = Field(None, max_length=80, description="Created by user")
     lastUpdatedBy: Optional[str] = Field(None, max_length=80, description="Last updated by user")
     creationDt: datetime = Field(..., description="Creation timestamp")
@@ -81,20 +74,13 @@ class AgentTool(AgentToolBase):
         )
         
 
-class AgentKnowledgeBaseBase(BaseModel):
-    agentId: str = Field(..., max_length=80, description="Agent ID")
+class AgentKnowledgeBaseCreate(BaseModel):
     knowledgeBaseId: str = Field(..., max_length=80, description="Knowledge base ID")
 
 
-class AgentKnowledgeBaseCreate(AgentKnowledgeBaseBase):
-    pass
-
-
-class AgentKnowledgeBaseUpdate(BaseModel):
-    pass
-
-
-class AgentKnowledgeBase(AgentKnowledgeBaseBase):
+class AgentKnowledgeBase(BaseModel):
+    agentId: str = Field(..., max_length=80, description="Agent ID")
+    knowledgeBaseId: str = Field(..., max_length=80, description="Knowledge base ID")
     createdBy: Optional[str] = Field(None, max_length=80, description="Created by user")
     lastUpdatedBy: Optional[str] = Field(None, max_length=80, description="Last updated by user")
     creationDt: datetime = Field(..., description="Creation timestamp")

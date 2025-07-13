@@ -149,10 +149,6 @@ class ToolEnvironmentVariableBase(BaseModel):
         populate_by_name = True
 
 
-class ToolEnvironmentVariableCreate(ToolEnvironmentVariableBase):
-    pass
-
-
 # For bulk creation - no toolId needed since it's in the path
 class ToolEnvironmentVariableBulkItem(BaseModel):
     envVarKey: str = Field(

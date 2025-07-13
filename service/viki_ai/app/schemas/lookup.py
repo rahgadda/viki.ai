@@ -56,8 +56,14 @@ class LookupDetailsBase(BaseModel):
         populate_by_name = True
 
 
-class LookupDetailsCreate(LookupDetailsBase):
-    pass
+class LookupDetailsCreate(BaseModel):
+    lookupDetailCode: str = Field(..., max_length=80, description="LookupDetails code")
+    lookupDetailDescription: Optional[str] = Field(None, max_length=240, description="Lookup description")
+    lookupDetailSubCode: Optional[str] = Field(None, max_length=80, description="Lookup Subcode")
+    lookupDetailSort: Optional[int] = Field(None, description="Sort order")
+
+    class Config:
+        populate_by_name = True
 
 
 class LookupDetailsUpdate(BaseModel):

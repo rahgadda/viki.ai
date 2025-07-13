@@ -181,13 +181,6 @@ def create_lookup_detail(
             detail=f"Lookup type '{lookupType}' not found"
         )
     
-    # Ensure the lookup detail is for the correct type
-    if lookup_detail.lookupType != lookupType:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Lookup detail type '{lookup_detail.lookupType}' does not match URL parameter '{lookupType}'"
-        )
-    
     # Check if lookup detail already exists
     existing_detail = db.query(LookupDetails).filter(
         LookupDetails.lkd_lkt_type == lookupType,
@@ -199,9 +192,9 @@ def create_lookup_detail(
             detail=f"Lookup detail '{lookup_detail.lookupDetailCode}' already exists for type '{lookupType}'"
         )
     
-    # Create lookup detail - Pydantic will handle the field mapping via validation_alias
+    # Create lookup detail using lookupType from path parameter
     db_lookup_detail = LookupDetails(
-        lkd_lkt_type=lookup_detail.lookupType,
+        lkd_lkt_type=lookupType,
         lkd_code=lookup_detail.lookupDetailCode,
         lkd_description=lookup_detail.lookupDetailDescription,
         lkd_sub_code=lookup_detail.lookupDetailSubCode,
@@ -306,13 +299,6 @@ def create_lookup_lookupDetails_bulk(
     
     created_lookupDetails = []
     for lookup_detail in lookup_lookupDetails:
-        # Ensure the lookup detail is for the correct type
-        if lookup_detail.lookupType != lookupType:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Lookup detail type '{lookup_detail.lookupType}' does not match URL parameter '{lookupType}'"
-            )
-        
         # Check if lookup detail already exists
         existing_detail = db.query(LookupDetails).filter(
             LookupDetails.lkd_lkt_type == lookupType,
@@ -324,9 +310,9 @@ def create_lookup_lookupDetails_bulk(
                 detail=f"Lookup detail '{lookup_detail.lookupDetailCode}' already exists for type '{lookupType}'"
             )
         
-        # Create lookup detail - Pydantic will handle the field mapping via validation_alias
+        # Create lookup detail using lookupType from path parameter
         db_lookup_detail = LookupDetails(
-            lkd_lkt_type=lookup_detail.lookupType,
+            lkd_lkt_type=lookupType,
             lkd_code=lookup_detail.lookupDetailCode,
             lkd_description=lookup_detail.lookupDetailDescription,
             lkd_sub_code=lookup_detail.lookupDetailSubCode,

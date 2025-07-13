@@ -60,8 +60,11 @@ class KnowledgeBaseDocumentsBase(BaseModel):
         populate_by_name = True
 
 
-class KnowledgeBaseDocumentsCreate(KnowledgeBaseDocumentsBase):
-    pass
+class KnowledgeBaseDocumentsCreate(BaseModel):
+    fileStoreId: str = Field(..., max_length=80, description="File store ID")
+
+    class Config:
+        populate_by_name = True
 
 
 class KnowledgeBaseDocumentsUpdate(BaseModel):

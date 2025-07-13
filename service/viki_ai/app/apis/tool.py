@@ -14,7 +14,6 @@ from app.schemas.tool import (
     ToolUpdate,
     ToolWithDetails,
     ToolEnvironmentVariable as ToolEnvironmentVariableSchema,
-    ToolEnvironmentVariableCreate,
     ToolEnvironmentVariableBulkItem,
     ToolEnvironmentVariableUpdate,
     ToolResource as ToolResourceSchema
