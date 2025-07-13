@@ -1,10 +1,10 @@
 import os
-import logging
+import asyncio
 from turtle import st
 from typing import Any, Optional, Dict, List
-
 from httpx import stream
 from pydantic import SecretStr
+from . mcpTool import load_mcp_connection
 
 # Import all LangChain providers with error handling
 try:
@@ -250,6 +250,8 @@ def generate_llm_response(
     temperature: float = 0.0,
     proxy_required: bool = False,
     streaming: bool = False,
+    mcp_command: Optional[str] = None,
+    env_vars: Dict[str, str] = {},
     messages: Optional[List[Any]] = None
 ) -> Any:
     """
@@ -285,7 +287,23 @@ def generate_llm_response(
         logger.error(f"Failed to configure LLM model: {llm_provider}, {model_name}")
         return None
 
-    # Use invoke method with LangChain message objects
-    response = model.invoke(messages or [])
+    # Ensure messages is not None
+    if messages is None:
+        messages = []
+
+    # Load MCP tools if MCP command is provided and not None
+    tools = []
+    if mcp_command is not None and mcp_command.strip():
+        tools = asyncio.run(load_mcp_connection(
+            mcp_command, 
+            env_vars
+        ))
     
+    if not tools:
+        logger.info("No MCP tools loaded, proceeding without tools")
+        response = model.invoke(messages)
+    else:
+        logger.info(f"Loaded {len(tools)} MCP tools for invocation")    
+        response = model.invoke(messages, tools=tools)
+
     return response

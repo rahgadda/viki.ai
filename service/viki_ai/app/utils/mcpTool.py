@@ -1,5 +1,5 @@
 import asyncio
-from typing import Dict, Tuple, Optional, List
+from typing import Dict, Tuple, Optional, List, Any
 import os
 import logging
 from mcp.client.stdio import stdio_client
@@ -39,6 +39,51 @@ async def _create_test_connection_with_retry(server_params: StdioServerParameter
                     logging.info(f"Resource contention detected, adding {additional_delay:.2f}s additional delay")
                     await asyncio.sleep(additional_delay)
 
+async def load_mcp_connection(
+    mcp_command: str, 
+    environment_variables: Dict[str, str]
+) -> Any:
+    """
+    Load MCP connection and return function count and function details.
+    Args:
+        mcp_command: The MCP command to connect to
+        environment_variables: Environment variables for the MCP server
+    Returns:
+        tools: List of MCP tools loaded from the server
+    """
+    
+    # Parse MCP command to get command and args
+    command_parts = mcp_command.strip().split()
+    if not command_parts:
+        return False, 0, "Empty MCP command", None
+    
+    command = command_parts[0]
+    args = command_parts[1:] if len(command_parts) > 1 else []
+    
+    # Prepare environment
+    env = os.environ.copy()
+    env.update(environment_variables)
+    
+    # Create server parameters
+    server_params = StdioServerParameters(
+        command=command,
+        args=args,
+        env=env
+    )
+    
+    # Test connection and count tools
+    connection_manager = await _create_test_connection_with_retry(server_params)
+    
+    async with connection_manager as (read, write):  # type: ignore
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            logging.info("MCP test connection initialized successfully")
+            
+            # Load MCP tools and count them
+            tools = await load_mcp_tools(session)
+            return tools
+
+
 
 async def test_mcp_configuration(
     mcp_command: str, 
@@ -55,48 +100,21 @@ async def test_mcp_configuration(
         Tuple of (success: bool, function_count: int, error_message: Optional[str], functions: Optional[List[Dict[str, str]]])
     """
     try:
-        # Parse MCP command to get command and args
-        command_parts = mcp_command.strip().split()
-        if not command_parts:
-            return False, 0, "Empty MCP command", None
+        # Use the existing load_mcp_connection function
+        tools = await load_mcp_connection(mcp_command, environment_variables)
+        tool_count = len(tools)
         
-        command = command_parts[0]
-        args = command_parts[1:] if len(command_parts) > 1 else []
+        # Extract function details
+        functions = []
+        for tool in tools:
+            functions.append({
+                "name": tool.name,
+                "description": tool.description if hasattr(tool, 'description') else "",
+                "type": "function"
+            })
         
-        # Prepare environment
-        env = os.environ.copy()
-        env.update(environment_variables)
-        
-        # Create server parameters
-        server_params = StdioServerParameters(
-            command=command,
-            args=args,
-            env=env
-        )
-        
-        # Test connection and count tools
-        connection_manager = await _create_test_connection_with_retry(server_params)
-        
-        async with connection_manager as (read, write):  # type: ignore
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                logging.info("MCP test connection initialized successfully")
-                
-                # Load MCP tools and count them
-                tools = await load_mcp_tools(session)
-                tool_count = len(tools)
-                
-                # Extract function details
-                functions = []
-                for tool in tools:
-                    functions.append({
-                        "name": tool.name,
-                        "description": tool.description if hasattr(tool, 'description') else "",
-                        "type": "function"
-                    })
-                
-                logging.info(f"Successfully loaded {tool_count} MCP tools in test")
-                return True, tool_count, None, functions
+        logging.info(f"Successfully loaded {tool_count} MCP tools in test")
+        return True, tool_count, None, functions
                 
     except Exception as e:
         error_message = f"Failed to test MCP configuration: {str(e)}"

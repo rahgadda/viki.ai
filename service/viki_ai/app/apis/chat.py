@@ -5,8 +5,9 @@ import uuid
 from app.utils.database import get_db
 from app.utils.config import settings
 from app.models.chat import ChatSession, ChatMessage
-from app.models.agent import Agent
+from app.models.agent import Agent, AgentTool
 from app.models.llm import LLM
+from app.models.tool import Tool, ToolEnvironmentVariable
 from app.schemas.chat import (
     ChatSession as ChatSessionSchema,
     ChatMessage as ChatMessageSchema,
@@ -23,6 +24,54 @@ from app.utils.inference import generate_llm_response
 
 # Create router with version prefix
 router = APIRouter(prefix=f"/api/v{settings.VERSION}")
+
+
+def get_agent_mcp_tools_and_env_vars(agent_id: str, db: Session):
+    """
+    Load MCP commands and environment variables for all tools associated with an agent.
+    Returns a list of tuples (mcp_command, env_vars_dict) for each tool.
+    """
+    mcp_tools_config = []
+    
+    # Get all tools associated with the agent
+    agent_tools = db.query(AgentTool).filter(AgentTool.ato_agt_id == agent_id).all()
+    
+    for agent_tool in agent_tools:
+        # Get the tool details
+        tool = db.query(Tool).filter(Tool.tol_id == getattr(agent_tool, 'ato_tol_id')).first()
+        mcp_command = getattr(tool, 'tol_mcp_command', None) if tool else None
+        
+        # Only include tools with valid MCP commands (not None, not empty string)
+        if tool and mcp_command and mcp_command.strip():
+            # Get environment variables for this tool
+            env_vars = {}
+            tool_env_vars = db.query(ToolEnvironmentVariable).filter(
+                ToolEnvironmentVariable.tev_tol_id == getattr(tool, 'tol_id')
+            ).all()
+            
+            for env_var in tool_env_vars:
+                env_vars[getattr(env_var, 'tev_key')] = getattr(env_var, 'tev_value')
+            
+            mcp_tools_config.append((mcp_command, env_vars))
+    
+    return mcp_tools_config
+
+
+def get_primary_mcp_tool_config(agent_id: str, db: Session):
+    """
+    Get the primary MCP tool configuration for an agent.
+    Returns the first tool's MCP command and environment variables, or None values if no tools.
+    """
+    mcp_tools_config = get_agent_mcp_tools_and_env_vars(agent_id, db)
+    
+    # Use the first tool's configuration if available, or None values if no tools
+    mcp_command = mcp_tools_config[0][0] if mcp_tools_config else None
+    env_vars = mcp_tools_config[0][1] if mcp_tools_config else {}
+    
+    # Log the configuration for debugging
+    settings.logger.info(f"Agent {agent_id} MCP config - Command: {mcp_command}, Env vars count: {len(env_vars)}")
+    
+    return mcp_command, env_vars
 
 
 def get_username(x_username: str = Header(None, alias="x-username")) -> str:
@@ -148,6 +197,9 @@ def create_chat_session_with_message(
         # Add user message
         langchain_messages.append(HumanMessage(content=chat_create.messageContent))
         
+        # Get MCP tools and environment variables for the agent
+        mcp_command, env_vars = get_primary_mcp_tool_config(chat_create.chatAgentId, db)
+
         # Generate LLM response
         ai_response = generate_llm_response(
             llm_provider=getattr(db_llm, 'llc_provider_type_cd'),
@@ -157,6 +209,8 @@ def create_chat_session_with_message(
             temperature=0.0,
             proxy_required=getattr(db_llm, 'llc_proxy_required', False),
             streaming=getattr(db_llm, 'llc_streaming', False),
+            mcp_command=mcp_command,
+            env_vars=env_vars,
             messages=langchain_messages
         )
         
@@ -342,6 +396,9 @@ def create_chat_message(
                 elif msg_role == "tool":
                     langchain_messages.append(ToolMessage(content=msg_content, tool_call_id=""))
             
+            # Get MCP tools and environment variables for the agent
+            mcp_command, env_vars = get_primary_mcp_tool_config(getattr(db_session, 'cht_agt_id'), db)
+            
             # Generate LLM response
             ai_response = generate_llm_response(
                 llm_provider=getattr(db_llm, 'llc_provider_type_cd'),
@@ -351,6 +408,8 @@ def create_chat_message(
                 temperature=0.0,
                 proxy_required=getattr(db_llm, 'llc_proxy_required', False),
                 streaming=getattr(db_llm, 'llc_streaming', False),
+                mcp_command=mcp_command,
+                env_vars=env_vars,
                 messages=langchain_messages
             )
             
@@ -481,6 +540,9 @@ def update_chat_message(
             elif msg_role == "tool":
                 langchain_messages.append(ToolMessage(content=msg_content, tool_call_id=""))
         
+        # Get MCP tools and environment variables for the agent
+        mcp_command, env_vars = get_primary_mcp_tool_config(getattr(db_session, 'cht_agt_id'), db)
+        
         # Generate LLM response
         ai_response = generate_llm_response(
             llm_provider=getattr(db_llm, 'llc_provider_type_cd'),
@@ -490,6 +552,8 @@ def update_chat_message(
             temperature=0.0,
             proxy_required=getattr(db_llm, 'llc_proxy_required', False),
             streaming=getattr(db_llm, 'llc_streaming', False),
+            mcp_command=mcp_command,
+            env_vars=env_vars,
             messages=langchain_messages
         )
         
