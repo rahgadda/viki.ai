@@ -5,6 +5,7 @@ from typing import Any, Optional, Dict, List
 from httpx import stream
 from pydantic import SecretStr
 from . mcpTool import load_mcp_connection
+from langgraph.prebuilt import create_react_agent
 
 # Import all LangChain providers with error handling
 try:
@@ -304,6 +305,8 @@ def generate_llm_response(
         response = model.invoke(messages)
     else:
         logger.info(f"Loaded {len(tools)} MCP tools for invocation")    
-        response = model.invoke(messages, tools=tools)
+        agent = create_react_agent(model, tools)
+        logger.info("REACT agent created")
+        response = asyncio.run(agent.ainvoke({"messages": messages}))
 
     return response
