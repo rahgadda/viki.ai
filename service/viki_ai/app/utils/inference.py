@@ -362,11 +362,18 @@ def generate_llm_response(
             
             response = asyncio.run(run_with_mcp_tools())
             logger.info(f"Agent response generated successfully with MCP tools")
+            logger.debug(f"Agent response format: {type(response)}")
+            if isinstance(response, dict) and 'messages' in response:
+                logger.debug(f"Agent response contains {len(response['messages'])} messages")
+                for i, msg in enumerate(response['messages']):
+                    logger.debug(f"Message {i}: {type(msg).__name__} - {getattr(msg, 'content', str(msg))[:100]}...")
             return response
         else:
             # Direct model invocation without MCP tools
             response = asyncio.run(model.ainvoke(messages))
             logger.info(f"LLM response generated successfully without MCP tools")
+            logger.debug(f"LLM response format: {type(response)}")
+            logger.debug(f"LLM response content: {getattr(response, 'content', str(response))[:100]}...")
             return response
             
     except Exception as e:

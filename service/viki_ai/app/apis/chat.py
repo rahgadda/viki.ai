@@ -33,6 +33,41 @@ def get_username(x_username: str = Header(None, alias="x-username")) -> str:
     return x_username or "SYSTEM"
 
 
+# Utility function to extract content from LangChain message
+def extract_message_content(msg) -> str:
+    """
+    Extract content from a LangChain message, handling both string and list formats.
+    
+    Args:
+        msg: LangChain message object
+        
+    Returns:
+        str: Extracted content as string
+    """
+    content = getattr(msg, 'content', str(msg))
+    
+    if isinstance(content, list):
+        # Convert list content to string representation
+        content_parts = []
+        for item in content:
+            if isinstance(item, dict):
+                if item.get('type') == 'text':
+                    content_parts.append(item.get('text', ''))
+                elif item.get('type') == 'tool_use':
+                    tool_name = item.get('name', 'unknown_tool')
+                    tool_input = item.get('input', {})
+                    content_parts.append(f"[Tool Call: {tool_name} with input: {tool_input}]")
+                else:
+                    content_parts.append(str(item))
+            else:
+                content_parts.append(str(item))
+        content = ' '.join(content_parts) if content_parts else str(content)
+    elif not isinstance(content, str):
+        content = str(content)
+    
+    return content
+
+
 # Chat Session endpoints
 @router.get("/chat/sessions", response_model=List[ChatSessionSchema])
 def get_chat_sessions(
@@ -166,35 +201,76 @@ def create_chat_session_with_message(
         )
         
         # Create AI response message if we got a response
-        if ai_response and hasattr(ai_response, 'content'):
-            ai_message_id = str(uuid.uuid4())
-            db_ai_message = ChatMessage(
-                msg_id=ai_message_id,
-                msg_cht_id=session_id,
-                msg_agent_name=db_agent.agt_name,
-                msg_role="assistant",
-                msg_content=ai_response.content,
-                created_by=username,
-                last_updated_by=username
-            )
-            db.add(db_ai_message)
-            db.commit()
-            db.refresh(db_ai_message)
+        if ai_response:
+            # Handle different response formats
+            messages_to_persist = []
             
-            # Convert both messages to schemas
-            message_data = ChatMessageSchema.from_db_model(db_message)
-            ai_message_data = ChatMessageSchema.from_db_model(db_ai_message)
+            # If response has 'messages' key (agent response), extract messages
+            if isinstance(ai_response, dict) and 'messages' in ai_response:
+                response_messages = ai_response['messages']
+                # Find new messages (those not in our original input)
+                for msg in response_messages:
+                    if not any(orig_msg.id == getattr(msg, 'id', None) for orig_msg in langchain_messages):
+                        messages_to_persist.append(msg)
+            # If response is a single message object (direct model response)
+            elif hasattr(ai_response, 'content'):
+                messages_to_persist.append(ai_response)
             
-            # Convert to public schemas for response
-            session_data = ChatSessionSchema.from_db_model(db_session)
-            session_public = ChatSessionPublic(**session_data.dict())
-            message_public = ChatMessagePublic(**message_data.dict())
-            ai_message_public = ChatMessagePublic(**ai_message_data.dict())
+            # Persist all new messages
+            persisted_messages = []
+            for msg in messages_to_persist:
+                msg_id = str(uuid.uuid4())
+                
+                # Determine role from message type and extract content properly
+                if hasattr(msg, '__class__'):
+                    msg_type = msg.__class__.__name__
+                    if msg_type == 'AIMessage':
+                        role = 'assistant'
+                    elif msg_type == 'HumanMessage':
+                        role = 'user'
+                    elif msg_type == 'SystemMessage':
+                        role = 'system'
+                    elif msg_type == 'ToolMessage':
+                        role = 'tool'
+                    else:
+                        role = 'assistant'  # Default fallback
+                else:
+                    role = 'assistant'  # Default fallback
+                
+                # Extract content using the utility function
+                content = extract_message_content(msg)
+                
+                db_message = ChatMessage(
+                    msg_id=msg_id,
+                    msg_cht_id=session_id,
+                    msg_agent_name=db_agent.agt_name,
+                    msg_role=role,
+                    msg_content=content,
+                    created_by=username,
+                    last_updated_by=username
+                )
+                db.add(db_message)
+                persisted_messages.append(db_message)
             
-            return ChatSessionWithMessages(
-                **session_public.dict(),
-                messages=[message_public, ai_message_public]
-            )
+            if persisted_messages:
+                db.commit()
+                for db_msg in persisted_messages:
+                    db.refresh(db_msg)
+                
+                # Convert both user message and all AI messages to schemas
+                all_messages = [ChatMessageSchema.from_db_model(db_message)]
+                for ai_msg in persisted_messages:
+                    all_messages.append(ChatMessageSchema.from_db_model(ai_msg))
+                
+                # Convert to public schemas for response
+                session_data = ChatSessionSchema.from_db_model(db_session)
+                session_public = ChatSessionPublic(**session_data.dict())
+                messages_public = [ChatMessagePublic(**msg.dict()) for msg in all_messages]
+                
+                return ChatSessionWithMessages(
+                    **session_public.dict(),
+                    messages=messages_public
+                )
     
     except Exception as e:
         settings.logger.error(f"Error generating LLM response: {str(e)}")
@@ -364,23 +440,59 @@ def create_chat_message(
             )
             
             # Create AI response message if we got a response
-            if ai_response and hasattr(ai_response, 'content'):
-                ai_message_id = str(uuid.uuid4())
-                db_ai_message = ChatMessage(
-                    msg_id=ai_message_id,
-                    msg_cht_id=sessionId,
-                    msg_agent_name=db_agent.agt_name,
-                    msg_role="assistant",
-                    msg_content=ai_response.content,
-                    created_by=username,
-                    last_updated_by=username
-                )
-                db.add(db_ai_message)
-                db.commit()
-                db.refresh(db_ai_message)
+            if ai_response:
+                # Handle different response formats
+                messages_to_persist = []
                 
-                # Add AI message to the response
-                created_messages.append(ChatMessageSchema.from_db_model(db_ai_message))
+                # If response has 'messages' key (agent response), extract messages
+                if isinstance(ai_response, dict) and 'messages' in ai_response:
+                    response_messages = ai_response['messages']
+                    # Find new messages (those not in our original input)
+                    for msg in response_messages:
+                        if not any(orig_msg.id == getattr(msg, 'id', None) for orig_msg in langchain_messages):
+                            messages_to_persist.append(msg)
+                # If response is a single message object (direct model response)
+                elif hasattr(ai_response, 'content'):
+                    messages_to_persist.append(ai_response)
+                
+                # Persist all new messages
+                for msg in messages_to_persist:
+                    msg_id = str(uuid.uuid4())
+                    
+                    # Determine role from message type and extract content properly
+                    if hasattr(msg, '__class__'):
+                        msg_type = msg.__class__.__name__
+                        if msg_type == 'AIMessage':
+                            role = 'assistant'
+                        elif msg_type == 'HumanMessage':
+                            role = 'user'
+                        elif msg_type == 'SystemMessage':
+                            role = 'system'
+                        elif msg_type == 'ToolMessage':
+                            role = 'tool'
+                        else:
+                            role = 'assistant'  # Default fallback
+                    else:
+                        role = 'assistant'  # Default fallback
+                    
+                    # Extract content using the utility function
+                    content = extract_message_content(msg)
+                    
+                    db_ai_message = ChatMessage(
+                        msg_id=msg_id,
+                        msg_cht_id=sessionId,
+                        msg_agent_name=db_agent.agt_name,
+                        msg_role=role,
+                        msg_content=content,
+                        created_by=username,
+                        last_updated_by=username
+                    )
+                    db.add(db_ai_message)
+                    db.commit()
+                    db.refresh(db_ai_message)
+                    
+                    # Add AI message to the response
+                    created_messages.append(ChatMessageSchema.from_db_model(db_ai_message))
     
     except Exception as e:
         settings.logger.error(f"Error generating LLM response: {str(e)}")
@@ -507,23 +619,59 @@ def update_chat_message(
         )
         
         # Create AI response message if we got a response
-        if ai_response and hasattr(ai_response, 'content'):
-            ai_message_id = str(uuid.uuid4())
-            db_ai_message = ChatMessage(
-                msg_id=ai_message_id,
-                msg_cht_id=sessionId,
-                msg_agent_name=db_agent.agt_name,
-                msg_role="assistant",
-                msg_content=ai_response.content,
-                created_by=username,
-                last_updated_by=username
-            )
-            db.add(db_ai_message)
-            db.commit()
-            db.refresh(db_ai_message)
+        if ai_response:
+            # Handle different response formats
+            messages_to_persist = []
             
-            # Add AI message to the response
-            updated_messages.append(ChatMessageSchema.from_db_model(db_ai_message))
+            # If response has 'messages' key (agent response), extract messages
+            if isinstance(ai_response, dict) and 'messages' in ai_response:
+                response_messages = ai_response['messages']
+                # Find new messages (those not in our original input)
+                for msg in response_messages:
+                    if not any(orig_msg.id == getattr(msg, 'id', None) for orig_msg in langchain_messages):
+                        messages_to_persist.append(msg)
+            # If response is a single message object (direct model response)
+            elif hasattr(ai_response, 'content'):
+                messages_to_persist.append(ai_response)
+            
+            # Persist all new messages
+            for msg in messages_to_persist:
+                msg_id = str(uuid.uuid4())
+                
+                # Determine role from message type and extract content properly
+                if hasattr(msg, '__class__'):
+                    msg_type = msg.__class__.__name__
+                    if msg_type == 'AIMessage':
+                        role = 'assistant'
+                    elif msg_type == 'HumanMessage':
+                        role = 'user'
+                    elif msg_type == 'SystemMessage':
+                        role = 'system'
+                    elif msg_type == 'ToolMessage':
+                        role = 'tool'
+                    else:
+                        role = 'assistant'  # Default fallback
+                else:
+                    role = 'assistant'  # Default fallback
+                
+                # Extract content using the utility function
+                content = extract_message_content(msg)
+                
+                db_ai_message = ChatMessage(
+                    msg_id=msg_id,
+                    msg_cht_id=sessionId,
+                    msg_agent_name=db_agent.agt_name,
+                    msg_role=role,
+                    msg_content=content,
+                    created_by=username,
+                    last_updated_by=username
+                )
+                db.add(db_ai_message)
+                db.commit()
+                db.refresh(db_ai_message)
+                
+                # Add AI message to the response
+                updated_messages.append(ChatMessageSchema.from_db_model(db_ai_message))
     
     except Exception as e:
         settings.logger.error(f"Error generating LLM response: {str(e)}")
