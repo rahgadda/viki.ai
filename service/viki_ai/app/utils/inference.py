@@ -1,5 +1,6 @@
 import os
 import asyncio
+import warnings
 from turtle import st
 from typing import Any, Optional, Dict, List
 from httpx import stream
@@ -251,8 +252,7 @@ def generate_llm_response(
     temperature: float = 0.0,
     proxy_required: bool = False,
     streaming: bool = False,
-    mcp_command: Optional[str] = None,
-    env_vars: Dict[str, str] = {},
+    mcp_servers: Optional[Dict[str, Dict[str, Any]]] = None,
     messages: Optional[List[Any]] = None
 ) -> Any:
     """
@@ -266,6 +266,19 @@ def generate_llm_response(
         temperature: Temperature setting for the model (default: 0.0)
         proxy_required: Whether to configure proxy settings
         streaming: Whether to enable streaming for the model
+        mcp_servers: Dictionary of MCP server configurations with server names as keys
+                    Example: {
+                        "math": {
+                            "command": "python",
+                            "args": ["/path/to/math_server.py"],
+                            "env": {"ENVIRONMENT_VAR": "value"},
+                            "transport": "stdio"
+                        },
+                        "weather": {
+                            "url": "http://localhost:8000/mcp/",
+                            "transport": "streamable_http"
+                        }
+                    }
         messages: List of LangChain message objects to send to the LLM
         
     Returns:
@@ -290,23 +303,72 @@ def generate_llm_response(
 
     # Ensure messages is not None
     if messages is None:
-        messages = []
+        logger.error(f"No input messages provided: {messages} is None")
+        return None
 
-    # Load MCP tools if MCP command is provided and not None
-    tools = []
-    if mcp_command is not None and mcp_command.strip():
-        tools = asyncio.run(load_mcp_connection(
-            mcp_command, 
-            env_vars
-        ))
-    
-    if not tools:
-        logger.info("No MCP tools loaded, proceeding without tools")
-        response = model.invoke(messages)
-    else:
-        logger.info(f"Loaded {len(tools)} MCP tools for invocation")    
-        agent = create_react_agent(model, tools)
-        logger.info("REACT agent created")
-        response = asyncio.run(agent.ainvoke({"messages": messages}))
-
-    return response
+    # Create agent with MCP tools if provided
+    try:
+        if mcp_servers:
+            logger.info(f"Loading MCP tools for servers: {list(mcp_servers.keys())}")
+            
+            async def run_with_mcp_tools():
+                all_tools = []
+                
+                # Load tools from each MCP server
+                for server_name, server_config in mcp_servers.items():
+                    try:
+                        logger.info(f"Loading tools from MCP server: {server_name}")
+                        
+                        # Handle different transport types
+                        if server_config.get("transport") == "stdio":
+                            # For stdio transport, construct the command string
+                            command = server_config.get("command", "")
+                            args = server_config.get("args", [])
+                            if args:
+                                mcp_command = f"{command} {' '.join(args)}"
+                            else:
+                                mcp_command = command
+                                
+                            # Load tools using existing function
+                            tools = await load_mcp_connection(mcp_command, server_config.get("env", {}))
+                            all_tools.extend(tools)
+                            logger.info(f"Loaded {len(tools)} tools from {server_name}")
+                            
+                        elif server_config.get("transport") == "streamable_http":
+                            # For HTTP transport, we would need different handling
+                            # This is not implemented in the existing load_mcp_connection function
+                            logger.warning(f"HTTP transport not yet supported for server {server_name}")
+                            
+                        else:
+                            logger.warning(f"Unsupported transport type for server {server_name}: {server_config.get('transport')}")
+                            
+                    except Exception as e:
+                        logger.error(f"Failed to load tools from server {server_name}: {str(e)}")
+                        # Continue with other servers even if one fails
+                        continue
+                
+                if all_tools:
+                    # Create a react agent with all the collected MCP tools
+                    agent = create_react_agent(model, all_tools)
+                    
+                    # Convert messages to agent format and invoke
+                    response = await agent.ainvoke({"messages": messages})
+                    return response
+                else:
+                    # No tools loaded, fall back to direct model invocation
+                    logger.info("No MCP tools loaded, falling back to direct model invocation")
+                    response = await model.ainvoke(messages)
+                    return response
+            
+            response = asyncio.run(run_with_mcp_tools())
+            logger.info(f"Agent response generated successfully with MCP tools")
+            return response
+        else:
+            # Direct model invocation without MCP tools
+            response = asyncio.run(model.ainvoke(messages))
+            logger.info(f"LLM response generated successfully without MCP tools")
+            return response
+            
+    except Exception as e:
+        logger.error(f"Error invoking model: {str(e)}")
+        return None
