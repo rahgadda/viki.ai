@@ -197,7 +197,8 @@ def create_chat_session_with_message(
             proxy_required=getattr(db_llm, 'llc_proxy_required', False),
             streaming=getattr(db_llm, 'llc_streaming', False),
             mcp_servers=mcp_servers,
-            messages=langchain_messages
+            messages=langchain_messages,
+            message_id=message_id
         )
         
         # Create AI response message if we got a response
@@ -225,20 +226,38 @@ def create_chat_session_with_message(
                 if hasattr(msg, '__class__'):
                     msg_type = msg.__class__.__name__
                     if msg_type == 'AIMessage':
-                        role = 'assistant'
+                        # Check if this is a tool call (empty content with tool_calls in additional_kwargs)
+                        additional_kwargs = getattr(msg, 'additional_kwargs', {})
+                        tool_calls = additional_kwargs.get('tool_calls', [])
+                        msg_content = getattr(msg, 'content', '')
+                        
+                        if not msg_content and tool_calls:
+                            # This is a tool call - record as tool message
+                            role = 'tool'
+                            # Extract tool name and arguments from first tool call
+                            first_tool_call = tool_calls[0]
+                            tool_name = first_tool_call.get('function', {}).get('name', 'unknown_tool')
+                            tool_arguments = first_tool_call.get('function', {}).get('arguments', '{}')
+                            content = f"Tool: {tool_name}, Arguments: {tool_arguments}"
+                        else:
+                            # Regular assistant message
+                            role = 'assistant'
+                            content = extract_message_content(msg)
                     elif msg_type == 'HumanMessage':
                         role = 'user'
+                        content = extract_message_content(msg)
                     elif msg_type == 'SystemMessage':
                         role = 'system'
+                        content = extract_message_content(msg)
                     elif msg_type == 'ToolMessage':
                         role = 'tool'
+                        content = extract_message_content(msg)
                     else:
                         role = 'assistant'  # Default fallback
+                        content = extract_message_content(msg)
                 else:
                     role = 'assistant'  # Default fallback
-                
-                # Extract content using the utility function
-                content = extract_message_content(msg)
+                    content = extract_message_content(msg)
                 
                 db_message = ChatMessage(
                     msg_id=msg_id,
@@ -283,8 +302,6 @@ def create_chat_session_with_message(
     # Convert to public schemas for response
     session_public = ChatSessionPublic(**session_data.dict())
     message_public = ChatMessagePublic(**message_data.dict())
-
-
     
     return ChatSessionWithMessages(
         **session_public.dict(),
@@ -436,7 +453,8 @@ def create_chat_message(
                 proxy_required=getattr(db_llm, 'llc_proxy_required', False),
                 streaming=getattr(db_llm, 'llc_streaming', False),
                 mcp_servers=mcp_servers,
-                messages=langchain_messages
+                messages=langchain_messages,
+                message_id=message_id
             )
             
             # Create AI response message if we got a response
@@ -463,20 +481,38 @@ def create_chat_message(
                     if hasattr(msg, '__class__'):
                         msg_type = msg.__class__.__name__
                         if msg_type == 'AIMessage':
-                            role = 'assistant'
+                            # Check if this is a tool call (empty content with tool_calls in additional_kwargs)
+                            additional_kwargs = getattr(msg, 'additional_kwargs', {})
+                            tool_calls = additional_kwargs.get('tool_calls', [])
+                            msg_content = getattr(msg, 'content', '')
+                            
+                            if not msg_content and tool_calls:
+                                # This is a tool call - record as tool message
+                                role = 'tool'
+                                # Extract tool name and arguments from first tool call
+                                first_tool_call = tool_calls[0]
+                                tool_name = first_tool_call.get('function', {}).get('name', 'unknown_tool')
+                                tool_arguments = first_tool_call.get('function', {}).get('arguments', '{}')
+                                content = f"Tool: {tool_name}, Arguments: {tool_arguments}"
+                            else:
+                                # Regular assistant message
+                                role = 'assistant'
+                                content = extract_message_content(msg)
                         elif msg_type == 'HumanMessage':
                             role = 'user'
+                            content = extract_message_content(msg)
                         elif msg_type == 'SystemMessage':
                             role = 'system'
+                            content = extract_message_content(msg)
                         elif msg_type == 'ToolMessage':
                             role = 'tool'
+                            content = extract_message_content(msg)
                         else:
                             role = 'assistant'  # Default fallback
+                            content = extract_message_content(msg)
                     else:
                         role = 'assistant'  # Default fallback
-                    
-                    # Extract content using the utility function
-                    content = extract_message_content(msg)
+                        content = extract_message_content(msg)
                     
                     db_ai_message = ChatMessage(
                         msg_id=msg_id,
@@ -615,7 +651,8 @@ def update_chat_message(
             proxy_required=getattr(db_llm, 'llc_proxy_required', False),
             streaming=getattr(db_llm, 'llc_streaming', False),
             mcp_servers=mcp_servers,
-            messages=langchain_messages
+            messages=langchain_messages,
+            message_id=messageId
         )
         
         # Create AI response message if we got a response
@@ -642,20 +679,38 @@ def update_chat_message(
                 if hasattr(msg, '__class__'):
                     msg_type = msg.__class__.__name__
                     if msg_type == 'AIMessage':
-                        role = 'assistant'
+                        # Check if this is a tool call (empty content with tool_calls in additional_kwargs)
+                        additional_kwargs = getattr(msg, 'additional_kwargs', {})
+                        tool_calls = additional_kwargs.get('tool_calls', [])
+                        msg_content = getattr(msg, 'content', '')
+                        
+                        if not msg_content and tool_calls:
+                            # This is a tool call - record as tool message
+                            role = 'tool'
+                            # Extract tool name and arguments from first tool call
+                            first_tool_call = tool_calls[0]
+                            tool_name = first_tool_call.get('function', {}).get('name', 'unknown_tool')
+                            tool_arguments = first_tool_call.get('function', {}).get('arguments', '{}')
+                            content = f"Tool: {tool_name}, Arguments: {tool_arguments}"
+                        else:
+                            # Regular assistant message
+                            role = 'assistant'
+                            content = extract_message_content(msg)
                     elif msg_type == 'HumanMessage':
                         role = 'user'
+                        content = extract_message_content(msg)
                     elif msg_type == 'SystemMessage':
                         role = 'system'
+                        content = extract_message_content(msg)
                     elif msg_type == 'ToolMessage':
                         role = 'tool'
+                        content = extract_message_content(msg)
                     else:
                         role = 'assistant'  # Default fallback
+                        content = extract_message_content(msg)
                 else:
                     role = 'assistant'  # Default fallback
-                
-                # Extract content using the utility function
-                content = extract_message_content(msg)
+                    content = extract_message_content(msg)
                 
                 db_ai_message = ChatMessage(
                     msg_id=msg_id,

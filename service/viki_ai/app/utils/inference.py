@@ -7,6 +7,8 @@ from httpx import stream
 from pydantic import SecretStr
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.prebuilt import create_react_agent
+from langgraph.checkpoint.memory import MemorySaver
+from langchain_core.runnables import RunnableConfig
 
 # Import all LangChain providers with error handling
 try:
@@ -253,7 +255,8 @@ def generate_llm_response(
     proxy_required: bool = False,
     streaming: bool = False,
     mcp_servers: Optional[Dict[str, Dict[str, Any]]] = None,
-    messages: Optional[List[Any]] = None
+    messages: Optional[List[Any]] = None,
+    message_id: Optional[str] = None
 ) -> Any:
     """
     Generate a response from the LLM model based on the provided messages.
@@ -280,6 +283,7 @@ def generate_llm_response(
                         }
                     }
         messages: List of LangChain message objects to send to the LLM
+        message_id: Optional message ID for thread management in MCP agents
         
     Returns:
         Response from the LLM model
@@ -312,14 +316,20 @@ def generate_llm_response(
             logger.debug(f"MCP servers configuration: {mcp_servers}")
             
             async def get_mcp_response():
+
+                memory = MemorySaver()
                 client = MultiServerMCPClient(mcp_servers) # type: ignore
                 tools = await client.get_tools()
                 agent = create_react_agent(
                     model=model,
-                    tools=tools # type: ignore
+                    tools=tools, # type: ignore
+                    interrupt_before=["tools"],
+                    checkpointer=memory
                 )
-                # LangGraph agents expect messages in dict format
-                return await agent.ainvoke({"messages": messages})
+
+                # LangGraph agents expect messages in dict format with configurable thread_id
+                config = RunnableConfig(configurable={"thread_id": message_id or "default_thread"})
+                return await agent.ainvoke({"messages": messages}, config=config)
             
             response = asyncio.run(get_mcp_response())
             logger.info(f"LLM response generated successfully with MCP tools")
