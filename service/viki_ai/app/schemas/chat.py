@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, Dict, Any
 
 
 class ChatSessionBase(BaseModel):
@@ -265,6 +265,43 @@ class ChatSessionCreateWithMessage(BaseModel):
         ..., 
         max_length=80, 
         description="Agent ID"
+    )
+
+    class Config:
+        populate_by_name = True
+
+
+# Tool call approval schemas
+class ToolCallDetail(BaseModel):
+    name: str = Field(..., description="Name of the tool to be called")
+    parameters: Dict[str, Any] = Field(..., description="Parameters for the tool call")
+    toolCallId: str = Field(..., description="Unique identifier for this tool call")
+
+
+class ToolCallApprovalRequest(BaseModel):
+    action: Literal["approve", "modify", "reject"] = Field(
+        ..., 
+        description="Action to take on the tool call: approve, modify, or reject"
+    )
+    modifiedParameters: Optional[Dict[str, Any]] = Field(
+        None, 
+        description="Modified parameters if action is 'modify'"
+    )
+    rejectionReason: Optional[str] = Field(
+        None, 
+        description="Reason for rejection if action is 'reject'"
+    )
+
+    class Config:
+        populate_by_name = True
+
+
+class ToolCallApprovalResponse(BaseModel):
+    success: bool = Field(..., description="Whether the approval action was successful")
+    message: str = Field(..., description="Status message")
+    continuationId: Optional[str] = Field(
+        None, 
+        description="ID for continuing the conversation after approval"
     )
 
     class Config:

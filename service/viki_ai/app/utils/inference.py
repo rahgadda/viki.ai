@@ -1,14 +1,16 @@
 import os
 import asyncio
 import warnings
+import json
 from turtle import st
-from typing import Any, Optional, Dict, List
+from typing import Any, Optional, Dict, List, Literal, Union
 from httpx import stream
 from pydantic import SecretStr
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.runnables import RunnableConfig
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 
 # Import all LangChain providers with error handling
 try:
@@ -345,4 +347,248 @@ def generate_llm_response(
             
     except Exception as e:
         logger.error(f"Error invoking model: {str(e)}")
+        return None
+
+
+def process_tool_call_approval(
+    tool_name: str,
+    tool_parameters: Dict[str, Any],
+    action: Literal["approve", "modify", "reject"],
+    mcp_servers: Optional[Dict[str, Dict[str, Any]]] = None,
+    modified_parameters: Optional[Dict[str, Any]] = None,
+    rejection_reason: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Process tool call approval, modification, or rejection.
+    
+    Args:
+        tool_name: Name of the tool to execute or reject
+        tool_parameters: Original tool parameters
+        action: Action to take - "approve", "modify", or "reject"
+        mcp_servers: Dictionary of MCP server configurations
+        modified_parameters: Modified parameters if action is "modify"
+        rejection_reason: Reason for rejection if action is "reject"
+        
+    Returns:
+        Dict containing execution result with keys:
+        - success: bool indicating if operation was successful
+        - action: str indicating what action was taken
+        - tool_name: str name of the tool
+        - parameters: dict final parameters used (original or modified)
+        - result: str result message or error description
+        - error: Optional[str] error message if execution failed
+    """
+    
+    logger = settings.logger
+    
+    try:
+        if action == "reject":
+            reason = rejection_reason or "Tool call was rejected by user"
+            logger.info(f"Tool call rejected: {tool_name} - {reason}")
+            
+            return {
+                "success": True,
+                "action": "reject",
+                "tool_name": tool_name,
+                "parameters": tool_parameters,
+                "result": f"Tool call rejected: {reason}",
+                "error": None
+            }
+        
+        elif action in ["approve", "modify"]:
+            # Use modified parameters if provided, otherwise use original
+            final_parameters = modified_parameters if action == "modify" and modified_parameters else tool_parameters
+            
+            if action == "modify":
+                logger.info(f"Tool call modified: {tool_name} - parameters updated")
+                logger.debug(f"Original parameters: {tool_parameters}")
+                logger.debug(f"Modified parameters: {final_parameters}")
+            else:
+                logger.info(f"Tool call approved: {tool_name}")
+            
+            # Execute the tool call
+            execution_result = execute_mcp_tool(
+                tool_name=tool_name,
+                parameters=final_parameters,
+                mcp_servers=mcp_servers
+            )
+            
+            return {
+                "success": execution_result["success"],
+                "action": action,
+                "tool_name": tool_name,
+                "parameters": final_parameters,
+                "result": execution_result["result"],
+                "error": execution_result.get("error")
+            }
+        
+        else:
+            error_msg = f"Invalid action: {action}. Must be 'approve', 'modify', or 'reject'"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "action": action,
+                "tool_name": tool_name,
+                "parameters": tool_parameters,
+                "result": error_msg,
+                "error": error_msg
+            }
+    
+    except Exception as e:
+        error_msg = f"Error processing tool call approval: {str(e)}"
+        logger.error(error_msg)
+        return {
+            "success": False,
+            "action": action,
+            "tool_name": tool_name,
+            "parameters": tool_parameters,
+            "result": error_msg,
+            "error": error_msg
+        }
+
+
+def execute_mcp_tool(
+    tool_name: str,
+    parameters: Dict[str, Any],
+    mcp_servers: Optional[Dict[str, Dict[str, Any]]] = None
+) -> Dict[str, Any]:
+    """
+    Execute a specific MCP tool with given parameters.
+    
+    Args:
+        tool_name: Name of the tool to execute
+        parameters: Parameters to pass to the tool
+        mcp_servers: Dictionary of MCP server configurations
+        
+    Returns:
+        Dict containing execution result:
+        - success: bool indicating if execution was successful
+        - result: str result from tool execution
+        - error: Optional[str] error message if execution failed
+    """
+    
+    logger = settings.logger
+    
+    try:
+        if not mcp_servers:
+            logger.warning("No MCP servers configured for tool execution")
+            return {
+                "success": False,
+                "result": "No MCP servers configured",
+                "error": "No MCP servers available for tool execution"
+            }
+        
+        async def execute_tool():
+            try:
+                client = MultiServerMCPClient(mcp_servers) # type: ignore
+                tools = await client.get_tools()
+                
+                # Find the specific tool
+                target_tool = None
+                for tool in tools:
+                    if hasattr(tool, 'name') and tool.name == tool_name:
+                        target_tool = tool
+                        break
+                
+                if not target_tool:
+                    available_tools = [getattr(tool, 'name', 'unnamed') for tool in tools]
+                    return {
+                        "success": False,
+                        "result": f"Tool '{tool_name}' not found",
+                        "error": f"Tool '{tool_name}' not found. Available tools: {available_tools}"
+                    }
+                
+                # Execute the tool
+                logger.debug(f"Executing tool '{tool_name}' with parameters: {parameters}")
+                result = await target_tool.ainvoke(parameters)
+                
+                logger.info(f"Tool '{tool_name}' executed successfully")
+                return {
+                    "success": True,
+                    "result": str(result),
+                    "error": None
+                }
+                
+            except Exception as e:
+                error_msg = f"Error executing tool '{tool_name}': {str(e)}"
+                logger.error(error_msg)
+                return {
+                    "success": False,
+                    "result": error_msg,
+                    "error": error_msg
+                }
+        
+        # Run the async tool execution
+        result = asyncio.run(execute_tool())
+        return result
+        
+    except Exception as e:
+        error_msg = f"Error setting up tool execution: {str(e)}"
+        logger.error(error_msg)
+        return {
+            "success": False,
+            "result": error_msg,
+            "error": error_msg
+        }
+
+
+def continue_conversation_after_tool(
+    llm_provider: str,
+    model_name: str,
+    messages: List[Any],
+    tool_result: str,
+    api_key: Optional[str] = None,
+    base_url: Optional[str] = None,
+    temperature: float = 0.0,
+    proxy_required: bool = False,
+    streaming: bool = False,
+    mcp_servers: Optional[Dict[str, Dict[str, Any]]] = None,
+    message_id: Optional[str] = None
+) -> Any:
+    """
+    Continue the conversation after tool execution by generating the next AI response.
+    
+    Args:
+        llm_provider: The LLM provider to use
+        model_name: The model name to use
+        messages: List of conversation messages including the tool result
+        tool_result: Result from the tool execution
+        api_key: API key for the provider (if required)
+        base_url: Base URL for the provider (if required)
+        temperature: Temperature setting for the model
+        proxy_required: Whether to configure proxy settings
+        streaming: Whether to enable streaming
+        mcp_servers: Dictionary of MCP server configurations
+        message_id: Optional message ID for thread management
+        
+    Returns:
+        Response from the LLM model or None if failed
+    """
+    
+    logger = settings.logger
+    
+    try:
+        # Add the tool result as a ToolMessage to the conversation
+        updated_messages = messages.copy()
+        updated_messages.append(ToolMessage(content=tool_result, tool_call_id=message_id or "tool_execution"))
+        
+        # Generate the next AI response
+        response = generate_llm_response(
+            llm_provider=llm_provider,
+            model_name=model_name,
+            api_key=api_key,
+            base_url=base_url,
+            temperature=temperature,
+            proxy_required=proxy_required,
+            streaming=streaming,
+            mcp_servers=mcp_servers,
+            messages=updated_messages,
+            message_id=message_id
+        )
+        
+        logger.info("Conversation continued successfully after tool execution")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error continuing conversation after tool execution: {str(e)}")
         return None
