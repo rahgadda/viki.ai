@@ -5,7 +5,7 @@ from turtle import st
 from typing import Any, Optional, Dict, List
 from httpx import stream
 from pydantic import SecretStr
-from . mcpTool import load_mcp_connection
+from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.prebuilt import create_react_agent
 
 # Import all LangChain providers with error handling
@@ -309,71 +309,28 @@ def generate_llm_response(
     # Create agent with MCP tools if provided
     try:
         if mcp_servers:
-            logger.info(f"Loading MCP tools for servers: {list(mcp_servers.keys())}")
+            logger.debug(f"MCP servers configuration: {mcp_servers}")
             
-            async def run_with_mcp_tools():
-                all_tools = []
-                
-                # Load tools from each MCP server
-                for server_name, server_config in mcp_servers.items():
-                    try:
-                        logger.info(f"Loading tools from MCP server: {server_name}")
-                        
-                        # Handle different transport types
-                        if server_config.get("transport") == "stdio":
-                            # For stdio transport, construct the command string
-                            command = server_config.get("command", "")
-                            args = server_config.get("args", [])
-                            if args:
-                                mcp_command = f"{command} {' '.join(args)}"
-                            else:
-                                mcp_command = command
-                                
-                            # Load tools using existing function
-                            tools = await load_mcp_connection(mcp_command, server_config.get("env", {}))
-                            all_tools.extend(tools)
-                            logger.info(f"Loaded {len(tools)} tools from {server_name}")
-                            
-                        elif server_config.get("transport") == "streamable_http":
-                            # For HTTP transport, we would need different handling
-                            # This is not implemented in the existing load_mcp_connection function
-                            logger.warning(f"HTTP transport not yet supported for server {server_name}")
-                            
-                        else:
-                            logger.warning(f"Unsupported transport type for server {server_name}: {server_config.get('transport')}")
-                            
-                    except Exception as e:
-                        logger.error(f"Failed to load tools from server {server_name}: {str(e)}")
-                        # Continue with other servers even if one fails
-                        continue
-                
-                if all_tools:
-                    # Create a react agent with all the collected MCP tools
-                    agent = create_react_agent(model, all_tools)
-                    
-                    # Convert messages to agent format and invoke
-                    response = await agent.ainvoke({"messages": messages})
-                    return response
-                else:
-                    # No tools loaded, fall back to direct model invocation
-                    logger.info("No MCP tools loaded, falling back to direct model invocation")
-                    response = await model.ainvoke(messages)
-                    return response
+            async def get_mcp_response():
+                client = MultiServerMCPClient(mcp_servers) # type: ignore
+                tools = await client.get_tools()
+                agent = create_react_agent(
+                    model=model,
+                    tools=tools # type: ignore
+                )
+                # LangGraph agents expect messages in dict format
+                return await agent.ainvoke({"messages": messages})
             
-            response = asyncio.run(run_with_mcp_tools())
-            logger.info(f"Agent response generated successfully with MCP tools")
-            logger.debug(f"Agent response format: {type(response)}")
-            if isinstance(response, dict) and 'messages' in response:
-                logger.debug(f"Agent response contains {len(response['messages'])} messages")
-                for i, msg in enumerate(response['messages']):
-                    logger.debug(f"Message {i}: {type(msg).__name__} - {getattr(msg, 'content', str(msg))[:100]}...")
+            response = asyncio.run(get_mcp_response())
+            logger.info(f"LLM response generated successfully with MCP tools")
+            logger.debug(f"LLM response format: {response}")
             return response
+
         else:
             # Direct model invocation without MCP tools
             response = asyncio.run(model.ainvoke(messages))
             logger.info(f"LLM response generated successfully without MCP tools")
-            logger.debug(f"LLM response format: {type(response)}")
-            logger.debug(f"LLM response content: {getattr(response, 'content', str(response))[:100]}...")
+            logger.debug(f"LLM response format: {response}")
             return response
             
     except Exception as e:
