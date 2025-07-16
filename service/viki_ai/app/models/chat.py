@@ -35,7 +35,7 @@ class ChatMessage(Base):
 
     # Check constraint for role values
     __table_args__ = (
-        CheckConstraint("msg_role IN ('system', 'user', 'assistant', 'tool')", name='check_msg_role'),
+        CheckConstraint("msg_role IN ('system', 'user', 'assistant', 'tool_input', 'tool_response')", name='check_msg_role'),
     )
 
     # Relationships

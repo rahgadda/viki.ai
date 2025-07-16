@@ -232,8 +232,8 @@ def create_chat_session_with_message(
                         msg_content = getattr(msg, 'content', '')
                         
                         if not msg_content and tool_calls:
-                            # This is a tool call - record as tool message
-                            role = 'tool'
+                            # This is a tool call - record as tool_input message
+                            role = 'tool_input'
                             # Extract tool name and arguments from first tool call
                             first_tool_call = tool_calls[0]
                             tool_name = first_tool_call.get('function', {}).get('name', 'unknown_tool')
@@ -250,7 +250,7 @@ def create_chat_session_with_message(
                         role = 'system'
                         content = extract_message_content(msg)
                     elif msg_type == 'ToolMessage':
-                        role = 'tool'
+                        role = 'tool_response'
                         content = extract_message_content(msg)
                     else:
                         role = 'assistant'  # Default fallback
@@ -437,8 +437,11 @@ def create_chat_message(
                     langchain_messages.append(AIMessage(content=msg_content))
                 elif msg_role == "system":
                     langchain_messages.append(SystemMessage(content=msg_content))
-                elif msg_role == "tool":
-                    langchain_messages.append(ToolMessage(content=msg_content, tool_call_id=""))
+                elif msg_role == "tool_input":
+                    # Tool input messages represent the tool call request
+                    langchain_messages.append(AIMessage(content=msg_content, additional_kwargs={"tool_calls": []}))
+                elif msg_role == "tool_response":
+                    langchain_messages.append(ToolMessage(content=msg_content, tool_call_id="default_tool_id"))
             
             # Get MCP servers configuration for the agent
             mcp_servers = get_agent_mcp_servers_config(getattr(db_session, 'cht_agt_id'), db)
@@ -487,8 +490,8 @@ def create_chat_message(
                             msg_content = getattr(msg, 'content', '')
                             
                             if not msg_content and tool_calls:
-                                # This is a tool call - record as tool message
-                                role = 'tool'
+                                # This is a tool call - record as tool_input message
+                                role = 'tool_input'
                                 # Extract tool name and arguments from first tool call
                                 first_tool_call = tool_calls[0]
                                 tool_name = first_tool_call.get('function', {}).get('name', 'unknown_tool')
@@ -505,7 +508,7 @@ def create_chat_message(
                             role = 'system'
                             content = extract_message_content(msg)
                         elif msg_type == 'ToolMessage':
-                            role = 'tool'
+                            role = 'tool_response'
                             content = extract_message_content(msg)
                         else:
                             role = 'assistant'  # Default fallback
@@ -635,8 +638,11 @@ def update_chat_message(
                 langchain_messages.append(AIMessage(content=msg_content))
             elif msg_role == "system":
                 langchain_messages.append(SystemMessage(content=msg_content))
-            elif msg_role == "tool":
-                langchain_messages.append(ToolMessage(content=msg_content, tool_call_id=""))
+            elif msg_role == "tool_input":
+                # Tool input messages represent the tool call request
+                langchain_messages.append(AIMessage(content=msg_content, additional_kwargs={"tool_calls": []}))
+            elif msg_role == "tool_response":
+                langchain_messages.append(ToolMessage(content=msg_content, tool_call_id="default_tool_id"))
         
         # Get MCP servers configuration for the agent
         mcp_servers = get_agent_mcp_servers_config(getattr(db_session, 'cht_agt_id'), db)
@@ -685,8 +691,8 @@ def update_chat_message(
                         msg_content = getattr(msg, 'content', '')
                         
                         if not msg_content and tool_calls:
-                            # This is a tool call - record as tool message
-                            role = 'tool'
+                            # This is a tool call - record as tool_input message
+                            role = 'tool_input'
                             # Extract tool name and arguments from first tool call
                             first_tool_call = tool_calls[0]
                             tool_name = first_tool_call.get('function', {}).get('name', 'unknown_tool')
@@ -703,7 +709,7 @@ def update_chat_message(
                         role = 'system'
                         content = extract_message_content(msg)
                     elif msg_type == 'ToolMessage':
-                        role = 'tool'
+                        role = 'tool_response'
                         content = extract_message_content(msg)
                     else:
                         role = 'assistant'  # Default fallback

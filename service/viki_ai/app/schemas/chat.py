@@ -93,9 +93,9 @@ class ChatMessageBase(BaseModel):
         max_length=240, 
         description="Agent name"
     )
-    messageRole: Literal["system", "user", "assistant", "tool"] = Field(
+    messageRole: Literal["system", "user", "assistant", "tool_input", "tool_response"] = Field(
         ..., 
-        description="Message role: system, user, assistant, or tool"
+        description="Message role: system, user, assistant, tool_input, or tool_response"
     )
     messageContent: str = Field(
         ..., 
@@ -228,9 +228,9 @@ class ChatMessagePublic(BaseModel):
         max_length=240, 
         description="Agent name"
     )
-    messageRole: Literal["system", "user", "assistant", "tool"] = Field(
+    messageRole: Literal["system", "user", "assistant", "tool_input", "tool_response"] = Field(
         ..., 
-        description="Message role: system, user, assistant, or tool"
+        description="Message role: system, user, assistant, tool_input, or tool_response"
     )
     messageContent: str = Field(
         ..., 

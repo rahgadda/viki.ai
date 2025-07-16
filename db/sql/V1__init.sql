@@ -200,7 +200,7 @@ CREATE TABLE chat_messages (
     msg_id VARCHAR(80) NOT NULL,
     msg_cht_id VARCHAR(80) NOT NULL,
     msg_agent_name VARCHAR(240) NOT NULL,
-    msg_role VARCHAR(30) NOT NULL CHECK (msg_role IN ('system', 'user', 'assistant', 'tool')),
+    msg_role VARCHAR(30) NOT NULL CHECK (msg_role IN ('system', 'user', 'assistant', 'tool_input', 'tool_response')),
     msg_content CLOB NOT NULL,
     created_by VARCHAR(80),
     last_updated_by VARCHAR(80),
