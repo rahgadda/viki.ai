@@ -347,7 +347,8 @@ def generate_llm_response(
             
     except Exception as e:
         logger.error(f"Error invoking model: {str(e)}")
-        return None
+        # Re-raise the exception so the chat API can handle it with user-friendly messages
+        raise e
 
 
 def process_tool_call_approval(
@@ -591,4 +592,5 @@ def continue_conversation_after_tool(
         
     except Exception as e:
         logger.error(f"Error continuing conversation after tool execution: {str(e)}")
-        return None
+        # Re-raise the exception so the chat API can handle it with user-friendly messages
+        raise e
