@@ -9,7 +9,7 @@ from langchain_mcp_adapters.tools import load_mcp_tools
 # Connection management constants
 MAX_RETRIES = 3
 BASE_DELAY = 0.5
-CONNECTION_SEMAPHORE = asyncio.Semaphore(2)
+CONNECTION_SEMAPHORE = asyncio.Semaphore(10)
 
 
 async def _create_test_connection_with_retry(server_params: StdioServerParameters, max_retries: int = MAX_RETRIES):
