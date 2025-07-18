@@ -312,6 +312,20 @@ def generate_llm_response(
         logger.error(f"No input messages provided: {messages} is None")
         return None
 
+    # Filter messages for Claude/Anthropic compatibility
+    provider = llm_provider.lower()
+    if provider == "anthropic":
+        # For Claude, filter out standalone ToolMessage objects that don't have proper tool_use context
+        filtered_messages = []
+        for i, msg in enumerate(messages):
+            if isinstance(msg, ToolMessage):
+                # Skip standalone ToolMessage objects for Claude
+                # They should be handled differently in the conversation flow
+                logger.debug(f"Skipping ToolMessage for Claude compatibility: {getattr(msg, 'tool_call_id', 'unknown')}")
+                continue
+            filtered_messages.append(msg)
+        messages = filtered_messages
+
     # Create agent with MCP tools if provided
     try:
         if mcp_servers:
@@ -569,9 +583,24 @@ def continue_conversation_after_tool(
     logger = settings.logger
     
     try:
-        # Add the tool result as a ToolMessage to the conversation
-        updated_messages = messages.copy()
-        updated_messages.append(ToolMessage(content=tool_result, tool_call_id=message_id or "tool_execution"))
+        # For Claude/Anthropic, we need to handle tool result messaging differently
+        # Claude requires tool_result blocks to have corresponding tool_use blocks in the previous message
+        provider = llm_provider.lower()
+        
+        if provider == "anthropic":
+            # For Anthropic/Claude, we need to create a proper message structure
+            # Instead of adding a standalone ToolMessage, we'll add a human message 
+            # summarizing the tool result and continue the conversation
+            updated_messages = messages.copy()
+            
+            # Add a human message that incorporates the tool result
+            tool_summary = f"The tool execution completed with the following result:\n\n{tool_result}\n\nPlease continue our conversation based on this result."
+            updated_messages.append(HumanMessage(content=tool_summary))
+            
+        else:
+            # For other providers, use the standard ToolMessage approach
+            updated_messages = messages.copy()
+            updated_messages.append(ToolMessage(content=tool_result, tool_call_id=message_id or "tool_execution"))
         
         # Generate the next AI response
         response = generate_llm_response(

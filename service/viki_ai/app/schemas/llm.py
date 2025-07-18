@@ -37,6 +37,10 @@ class LLMBase(BaseModel):
         False, 
         description="Whether this LLM supports streaming responses"
     )
+    llmSendHistory: Optional[bool] = Field(
+        False, 
+        description="Whether to send conversation history to this LLM"
+    )
 
     class Config:
         populate_by_name = True
@@ -79,6 +83,10 @@ class LLMUpdate(BaseModel):
     llmStreaming: Optional[bool] = Field(
         None, 
         description="Whether this LLM supports streaming responses"
+    )
+    llmSendHistory: Optional[bool] = Field(
+        None, 
+        description="Whether to send conversation history to this LLM"
     )
 
     class Config:
@@ -126,6 +134,7 @@ class LLM(LLMBase):
             llmFileStoreId=db_model.llc_fls_id,
             llmProxyRequired=db_model.llc_proxy_required,
             llmStreaming=db_model.llc_streaming,
+            llmSendHistory=db_model.llc_send_history,
             createdBy=db_model.created_by,
             lastUpdatedBy=db_model.last_updated_by,
             creationDt=db_model.creation_dt,
@@ -166,6 +175,10 @@ class LLMPublic(BaseModel):
     llmStreaming: Optional[bool] = Field(
         False, 
         description="Whether this LLM supports streaming responses"
+    )
+    llmSendHistory: Optional[bool] = Field(
+        False, 
+        description="Whether to send conversation history to this LLM"
     )
     createdBy: Optional[str] = Field(
         None, 

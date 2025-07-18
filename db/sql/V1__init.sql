@@ -48,6 +48,7 @@ CREATE TABLE llm (
     llc_fls_id VARCHAR(80),
     llc_proxy_required BOOLEAN DEFAULT FALSE,
     llc_streaming BOOLEAN DEFAULT FALSE,
+    llc_send_history BOOLEAN DEFAULT FALSE,
     created_by VARCHAR(80),
     last_updated_by VARCHAR(80),
     creation_dt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

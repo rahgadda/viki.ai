@@ -33,6 +33,34 @@ from app.utils.inference import generate_llm_response, process_tool_call_approva
 router = APIRouter(prefix=f"/api/v{settings.VERSION}")
 
 
+def is_claude_provider(llm_provider: str) -> bool:
+    """Check if the LLM provider is Claude/Anthropic."""
+    return llm_provider.lower() == "anthropic"
+
+
+def create_claude_compatible_messages(messages, tool_responses=None, provider=None):
+    """
+    Create Claude/Anthropic compatible message structure.
+    
+    For Claude, we need to avoid standalone ToolMessage objects and instead
+    incorporate tool results into Human messages.
+    """
+    if not is_claude_provider(provider or ""):
+        # For non-Claude providers, return messages as-is
+        return messages
+    
+    compatible_messages = []
+    for msg in messages:
+        if isinstance(msg, ToolMessage):
+            # Convert ToolMessage to HumanMessage for Claude compatibility
+            tool_result_content = f"Tool execution result:\n\n{msg.content}\n\nPlease continue based on this result."
+            compatible_messages.append(HumanMessage(content=tool_result_content))
+        else:
+            compatible_messages.append(msg)
+    
+    return compatible_messages
+
+
 def create_error_assistant_message(error: Exception, session_id: str, agent_name: str, username: str, db: Session) -> Optional[ChatMessage]:
     """
     Create an assistant message with error details for user-facing errors.
@@ -289,18 +317,81 @@ def extract_message_content(msg) -> str:
                 if item.get('type') == 'text':
                     content_parts.append(item.get('text', ''))
                 elif item.get('type') == 'tool_use':
-                    tool_name = item.get('name', 'unknown_tool')
-                    tool_input = item.get('input', {})
-                    content_parts.append(f"[Tool Call: {tool_name} with input: {tool_input}]")
+                    # Skip tool_use items as they should be handled separately as tool calls
+                    continue
                 else:
                     content_parts.append(str(item))
             else:
                 content_parts.append(str(item))
-        content = ' '.join(content_parts) if content_parts else str(content)
+        content = ' '.join(content_parts) if content_parts else ''
     elif not isinstance(content, str):
         content = str(content)
     
     return content
+
+
+def extract_tool_calls_from_message(msg):
+    """
+    Extract tool calls from an AIMessage, supporting different LLM formats.
+    
+    Args:
+        msg: LangChain AIMessage object
+        
+    Returns:
+        tuple: (has_tool_calls, tool_calls_list)
+    """
+    tool_calls = []
+    
+    # Method 1: Check tool_calls attribute (newer format)
+    if hasattr(msg, 'tool_calls') and msg.tool_calls:
+        for tool_call in msg.tool_calls:
+            if isinstance(tool_call, dict):
+                tool_calls.append({
+                    'id': tool_call.get('id', 'unknown'),
+                    'name': tool_call.get('name', 'unknown_tool'),
+                    'arguments': tool_call.get('args', {})
+                })
+            else:
+                # Handle object-style tool calls
+                tool_calls.append({
+                    'id': getattr(tool_call, 'id', 'unknown'),
+                    'name': getattr(tool_call, 'name', 'unknown_tool'),
+                    'arguments': getattr(tool_call, 'args', {})
+                })
+    
+    # Method 2: Check additional_kwargs for tool_calls (older format)
+    elif hasattr(msg, 'additional_kwargs'):
+        additional_kwargs = getattr(msg, 'additional_kwargs', {})
+        if 'tool_calls' in additional_kwargs:
+            for tool_call in additional_kwargs['tool_calls']:
+                function_info = tool_call.get('function', {})
+                tool_name = function_info.get('name', 'unknown_tool')
+                
+                # Parse arguments if they're in string format
+                arguments = function_info.get('arguments', '{}')
+                if isinstance(arguments, str):
+                    try:
+                        arguments = json.loads(arguments)
+                    except json.JSONDecodeError:
+                        arguments = {'raw_arguments': arguments}
+                
+                tool_calls.append({
+                    'id': tool_call.get('id', 'unknown'),
+                    'name': tool_name,
+                    'arguments': arguments
+                })
+    
+    # Method 3: Check content list for tool_use items (Claude format)
+    elif hasattr(msg, 'content') and isinstance(msg.content, list):
+        for item in msg.content:
+            if isinstance(item, dict) and item.get('type') == 'tool_use':
+                tool_calls.append({
+                    'id': item.get('id', 'unknown'),
+                    'name': item.get('name', 'unknown_tool'),
+                    'arguments': item.get('input', {})
+                })
+    
+    return len(tool_calls) > 0, tool_calls
 
 
 # Chat Session endpoints
@@ -461,23 +552,22 @@ def create_chat_session_with_message(
                 if hasattr(msg, '__class__'):
                     msg_type = msg.__class__.__name__
                     if msg_type == 'AIMessage':
-                        # Check if this is a tool call (empty content with tool_calls in additional_kwargs)
-                        additional_kwargs = getattr(msg, 'additional_kwargs', {})
-                        tool_calls = additional_kwargs.get('tool_calls', [])
-                        msg_content = getattr(msg, 'content', '')
+                        # Use the new helper function to check for tool calls
+                        has_tool_calls, tool_calls_list = extract_tool_calls_from_message(msg)
+                        msg_content = extract_message_content(msg)
                         
-                        if not msg_content and tool_calls:
+                        if has_tool_calls:
                             # This is a tool call - record as tool_input message
                             role = 'tool_input'
-                            # Extract tool name and arguments from first tool call
-                            first_tool_call = tool_calls[0]
-                            tool_name = first_tool_call.get('function', {}).get('name', 'unknown_tool')
-                            tool_arguments = first_tool_call.get('function', {}).get('arguments', '{}')
+                            # Use the first tool call for the content
+                            first_tool_call = tool_calls_list[0]
+                            tool_name = first_tool_call.get('name', 'unknown_tool')
+                            tool_arguments = json.dumps(first_tool_call.get('arguments', {}))
                             content = f"Tool: {tool_name}, Arguments: {tool_arguments}"
                         else:
                             # Regular assistant message
                             role = 'assistant'
-                            content = extract_message_content(msg)
+                            content = msg_content
                     elif msg_type == 'HumanMessage':
                         role = 'user'
                         content = extract_message_content(msg)
@@ -698,22 +788,35 @@ def create_chat_message(
             if system_prompt:
                 langchain_messages.append(SystemMessage(content=system_prompt))
             
-            # Add all messages from the session
-            for msg in all_messages:
-                msg_role = getattr(msg, 'msg_role')
-                msg_content = getattr(msg, 'msg_content')
-                
-                if msg_role == "user":
-                    langchain_messages.append(HumanMessage(content=msg_content))
-                elif msg_role == "assistant":
-                    langchain_messages.append(AIMessage(content=msg_content))
-                elif msg_role == "system":
-                    langchain_messages.append(SystemMessage(content=msg_content))
-                elif msg_role == "tool_input":
-                    # Tool input messages represent the tool call request
-                    langchain_messages.append(AIMessage(content=msg_content, additional_kwargs={"tool_calls": []}))
-                elif msg_role == "tool_response":
-                    langchain_messages.append(ToolMessage(content=msg_content, tool_call_id="default_tool_id"))
+            # Check if LLM should include conversation history
+            send_history = getattr(db_llm, 'llc_send_history', False)
+            
+            if send_history:
+                # Add all messages from the session
+                for msg in all_messages:
+                    msg_role = getattr(msg, 'msg_role')
+                    msg_content = getattr(msg, 'msg_content')
+                    
+                    if msg_role == "user":
+                        langchain_messages.append(HumanMessage(content=msg_content))
+                    elif msg_role == "assistant":
+                        langchain_messages.append(AIMessage(content=msg_content))
+                    elif msg_role == "system":
+                        langchain_messages.append(SystemMessage(content=msg_content))
+                    elif msg_role == "tool_input":
+                        # Tool input messages represent the tool call request
+                        langchain_messages.append(AIMessage(content=msg_content, additional_kwargs={"tool_calls": []}))
+                    elif msg_role == "tool_response":
+                        # For Claude, convert ToolMessage to HumanMessage
+                        llm_provider = getattr(db_llm, 'llc_provider_type_cd', '')
+                        if is_claude_provider(llm_provider):
+                            tool_result_content = f"Tool execution result:\n\n{msg_content}\n\nPlease continue based on this result."
+                            langchain_messages.append(HumanMessage(content=tool_result_content))
+                        else:
+                            langchain_messages.append(ToolMessage(content=msg_content, tool_call_id="default_tool_id"))
+            else:
+                # Only add the latest user message (the one just created)
+                langchain_messages.append(HumanMessage(content=message_create.messageContent))
             
             # Get MCP servers configuration for the agent
             mcp_servers = get_agent_mcp_servers_config(getattr(db_session, 'cht_agt_id'), db)
@@ -756,23 +859,22 @@ def create_chat_message(
                     if hasattr(msg, '__class__'):
                         msg_type = msg.__class__.__name__
                         if msg_type == 'AIMessage':
-                            # Check if this is a tool call (empty content with tool_calls in additional_kwargs)
-                            additional_kwargs = getattr(msg, 'additional_kwargs', {})
-                            tool_calls = additional_kwargs.get('tool_calls', [])
-                            msg_content = getattr(msg, 'content', '')
+                            # Use the new helper function to check for tool calls
+                            has_tool_calls, tool_calls_list = extract_tool_calls_from_message(msg)
+                            msg_content = extract_message_content(msg)
                             
-                            if not msg_content and tool_calls:
+                            if has_tool_calls:
                                 # This is a tool call - record as tool_input message
                                 role = 'tool_input'
-                                # Extract tool name and arguments from first tool call
-                                first_tool_call = tool_calls[0]
-                                tool_name = first_tool_call.get('function', {}).get('name', 'unknown_tool')
-                                tool_arguments = first_tool_call.get('function', {}).get('arguments', '{}')
+                                # Use the first tool call for the content
+                                first_tool_call = tool_calls_list[0]
+                                tool_name = first_tool_call.get('name', 'unknown_tool')
+                                tool_arguments = json.dumps(first_tool_call.get('arguments', {}))
                                 content = f"Tool: {tool_name}, Arguments: {tool_arguments}"
                             else:
                                 # Regular assistant message
                                 role = 'assistant'
-                                content = extract_message_content(msg)
+                                content = msg_content
                         elif msg_type == 'HumanMessage':
                             role = 'user'
                             content = extract_message_content(msg)
@@ -910,22 +1012,35 @@ def update_chat_message(
         if system_prompt:
             langchain_messages.append(SystemMessage(content=system_prompt))
         
-        # Add all messages from the session
-        for msg in all_messages:
-            msg_role = getattr(msg, 'msg_role')
-            msg_content = getattr(msg, 'msg_content')
-            
-            if msg_role == "user":
-                langchain_messages.append(HumanMessage(content=msg_content))
-            elif msg_role == "assistant":
-                langchain_messages.append(AIMessage(content=msg_content))
-            elif msg_role == "system":
-                langchain_messages.append(SystemMessage(content=msg_content))
-            elif msg_role == "tool_input":
-                # Tool input messages represent the tool call request
-                langchain_messages.append(AIMessage(content=msg_content, additional_kwargs={"tool_calls": []}))
-            elif msg_role == "tool_response":
-                langchain_messages.append(ToolMessage(content=msg_content, tool_call_id="default_tool_id"))
+        # Check if LLM should include conversation history
+        send_history = getattr(db_llm, 'llc_send_history', False)
+        
+        if send_history:
+            # Add all messages from the session
+            for msg in all_messages:
+                msg_role = getattr(msg, 'msg_role')
+                msg_content = getattr(msg, 'msg_content')
+                
+                if msg_role == "user":
+                    langchain_messages.append(HumanMessage(content=msg_content))
+                elif msg_role == "assistant":
+                    langchain_messages.append(AIMessage(content=msg_content))
+                elif msg_role == "system":
+                    langchain_messages.append(SystemMessage(content=msg_content))
+                elif msg_role == "tool_input":
+                    # Tool input messages represent the tool call request
+                    langchain_messages.append(AIMessage(content=msg_content, additional_kwargs={"tool_calls": []}))
+                elif msg_role == "tool_response":
+                    # For Claude, convert ToolMessage to HumanMessage
+                    llm_provider = getattr(db_llm, 'llc_provider_type_cd', '')
+                    if is_claude_provider(llm_provider):
+                        tool_result_content = f"Tool execution result:\n\n{msg_content}\n\nPlease continue based on this result."
+                        langchain_messages.append(HumanMessage(content=tool_result_content))
+                    else:
+                        langchain_messages.append(ToolMessage(content=msg_content, tool_call_id="default_tool_id"))
+        else:
+            # Only add the updated user message
+            langchain_messages.append(HumanMessage(content=message_update.messageContent))
         
         # Get MCP servers configuration for the agent
         mcp_servers = get_agent_mcp_servers_config(getattr(db_session, 'cht_agt_id'), db)
@@ -968,23 +1083,22 @@ def update_chat_message(
                 if hasattr(msg, '__class__'):
                     msg_type = msg.__class__.__name__
                     if msg_type == 'AIMessage':
-                        # Check if this is a tool call (empty content with tool_calls in additional_kwargs)
-                        additional_kwargs = getattr(msg, 'additional_kwargs', {})
-                        tool_calls = additional_kwargs.get('tool_calls', [])
-                        msg_content = getattr(msg, 'content', '')
+                        # Use the new helper function to check for tool calls
+                        has_tool_calls, tool_calls_list = extract_tool_calls_from_message(msg)
+                        msg_content = extract_message_content(msg)
                         
-                        if not msg_content and tool_calls:
+                        if has_tool_calls:
                             # This is a tool call - record as tool_input message
                             role = 'tool_input'
-                            # Extract tool name and arguments from first tool call
-                            first_tool_call = tool_calls[0]
-                            tool_name = first_tool_call.get('function', {}).get('name', 'unknown_tool')
-                            tool_arguments = first_tool_call.get('function', {}).get('arguments', '{}')
+                            # Use the first tool call for the content
+                            first_tool_call = tool_calls_list[0]
+                            tool_name = first_tool_call.get('name', 'unknown_tool')
+                            tool_arguments = json.dumps(first_tool_call.get('arguments', {}))
                             content = f"Tool: {tool_name}, Arguments: {tool_arguments}"
                         else:
                             # Regular assistant message
                             role = 'assistant'
-                            content = extract_message_content(msg)
+                            content = msg_content
                     elif msg_type == 'HumanMessage':
                         role = 'user'
                         content = extract_message_content(msg)
@@ -1402,22 +1516,54 @@ def approve_tool_call(
             if system_prompt:
                 langchain_messages.append(SystemMessage(content=system_prompt))
             
-            # Add all messages from the session
-            for msg in all_messages:
-                msg_role = getattr(msg, 'msg_role')
-                msg_content = getattr(msg, 'msg_content')
+            # Get LLM provider for Claude compatibility check
+            llm_provider = getattr(db_llm, 'llc_provider_type_cd', '')
+            
+            # Check if LLM should include conversation history
+            send_history = getattr(db_llm, 'llc_send_history', False)
+            
+            if send_history:
+                # Add all messages from the session
+                for msg in all_messages:
+                    msg_role = getattr(msg, 'msg_role')
+                    msg_content = getattr(msg, 'msg_content')
+                    
+                    if msg_role == "user":
+                        langchain_messages.append(HumanMessage(content=msg_content))
+                    elif msg_role == "assistant":
+                        langchain_messages.append(AIMessage(content=msg_content))
+                    elif msg_role == "system":
+                        langchain_messages.append(SystemMessage(content=msg_content))
+                    elif msg_role == "tool_input":
+                        # Tool input messages represent the tool call request
+                        langchain_messages.append(AIMessage(content=msg_content, additional_kwargs={"tool_calls": []}))
+                    elif msg_role == "tool_response":
+                        # For Claude, convert ToolMessage to HumanMessage
+                        if is_claude_provider(llm_provider):
+                            tool_result_content = f"Tool execution result:\n\n{msg_content}\n\nPlease continue based on this result."
+                            langchain_messages.append(HumanMessage(content=tool_result_content))
+                        else:
+                            langchain_messages.append(ToolMessage(content=msg_content, tool_call_id=getattr(msg, 'msg_id')))
+            else:
+                # For tool calls without history, we still need the tool response context
+                # Add the most recent tool_response message for context
+                latest_tool_response = None
+                for msg in reversed(all_messages):
+                    if getattr(msg, 'msg_role') == "tool_response":
+                        latest_tool_response = msg
+                        break
                 
-                if msg_role == "user":
-                    langchain_messages.append(HumanMessage(content=msg_content))
-                elif msg_role == "assistant":
-                    langchain_messages.append(AIMessage(content=msg_content))
-                elif msg_role == "system":
-                    langchain_messages.append(SystemMessage(content=msg_content))
-                elif msg_role == "tool_input":
-                    # Tool input messages represent the tool call request
-                    langchain_messages.append(AIMessage(content=msg_content, additional_kwargs={"tool_calls": []}))
-                elif msg_role == "tool_response":
-                    langchain_messages.append(ToolMessage(content=msg_content, tool_call_id=getattr(msg, 'msg_id')))
+                if latest_tool_response:
+                    tool_content = getattr(latest_tool_response, 'msg_content')
+                    if is_claude_provider(llm_provider):
+                        # For Claude, use HumanMessage instead of ToolMessage
+                        tool_result_content = f"Tool execution result:\n\n{tool_content}\n\nPlease continue based on this result."
+                        langchain_messages.append(HumanMessage(content=tool_result_content))
+                    else:
+                        langchain_messages.append(ToolMessage(
+                            content=tool_content,
+                            tool_call_id=getattr(latest_tool_response, 'msg_id')
+                        ))
             
             # Get MCP servers configuration for continuation
             mcp_servers = get_agent_mcp_servers_config(getattr(db_session, 'cht_agt_id'), db)
@@ -1463,21 +1609,22 @@ def approve_tool_call(
                     if hasattr(msg, '__class__'):
                         msg_type = msg.__class__.__name__
                         if msg_type == 'AIMessage':
-                            # Check if this is another tool call
-                            additional_kwargs = getattr(msg, 'additional_kwargs', {})
-                            tool_calls = additional_kwargs.get('tool_calls', [])
-                            msg_content = getattr(msg, 'content', '')
+                            # Use the new helper function to check for tool calls
+                            has_tool_calls, tool_calls_list = extract_tool_calls_from_message(msg)
+                            msg_content = extract_message_content(msg)
                             
-                            if not msg_content and tool_calls:
+                            if has_tool_calls:
                                 # This is another tool call - record as tool_input message
                                 role = 'tool_input'
-                                # Extract tool name and arguments from first tool call
-                                first_tool_call = tool_calls[0]
-                                tool_name = first_tool_call.get('function', {}).get('name', 'unknown_tool')
-                                tool_arguments = first_tool_call.get('function', {}).get('arguments', '{}')
+                                # Use the first tool call for the content
+                                first_tool_call = tool_calls_list[0]
+                                tool_name = first_tool_call.get('name', 'unknown_tool')
+                                tool_arguments = json.dumps(first_tool_call.get('arguments', {}))
                                 content = f"Tool: {tool_name}, Arguments: {tool_arguments}"
                             else:
                                 # Regular assistant message
+                                role = 'assistant'
+                                content = msg_content
                                 role = 'assistant'
                                 content = extract_message_content(msg)
                         else:

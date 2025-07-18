@@ -80,6 +80,7 @@ def create_llm(
         llc_fls_id=llm_create.llmFileStoreId,
         llc_proxy_required=llm_create.llmProxyRequired,
         llc_streaming=llm_create.llmStreaming,
+        llc_send_history=llm_create.llmSendHistory,
         created_by=username,
         last_updated_by=username
     )
@@ -119,6 +120,8 @@ def update_llm(
         setattr(db_llm, 'llc_proxy_required', llm_update.llmProxyRequired)
     if llm_update.llmStreaming is not None:
         setattr(db_llm, 'llc_streaming', llm_update.llmStreaming)
+    if llm_update.llmSendHistory is not None:
+        setattr(db_llm, 'llc_send_history', llm_update.llmSendHistory)
     
     setattr(db_llm, 'last_updated_by', username)
     
